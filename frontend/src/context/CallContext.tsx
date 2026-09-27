@@ -50,8 +50,10 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!active) return;
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
-      const role = 'mobile';
-      const wsUrl = `${protocol}//${host}/api/call/ws?role=${role}&device_id=mobile-client`;
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || Boolean((window as any).AndroidBridge);
+      const role = isMobileDevice ? 'mobile' : 'laptop';
+      const deviceId = isMobileDevice ? 'mobile-client' : 'laptop-client';
+      const wsUrl = `${protocol}//${host}/api/call/ws?role=${role}&device_id=${deviceId}`;
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -175,16 +177,33 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         break;
 
       case 'webrtc_offer':
-        if (peerConnRef.current) {
-          await peerConnRef.current.setRemoteDescription(new RTCSessionDescription(msg.offer));
-          const answer = await peerConnRef.current.createAnswer();
-          await peerConnRef.current.setLocalDescription(answer);
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'webrtc_answer',
-              answer
-            }));
+        try {
+          let pc = peerConnRef.current;
+          if (!pc) {
+            pc = createPeerConnection();
           }
+          if (!localStreamRef.current) {
+            const stream = await getUserMediaStream(facingMode);
+            if (stream && pc) {
+              stream.getTracks().forEach(track => pc.addTrack(track, stream));
+            }
+          }
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({
+                type: 'webrtc_answer',
+                session_id: msg.session_id || sessionId,
+                answer
+              }));
+            }
+            setCallState('connected');
+            startCallTimer();
+          }
+        } catch (e) {
+          console.error('[WEBRTC] Error processing offer:', e);
         }
         break;
 

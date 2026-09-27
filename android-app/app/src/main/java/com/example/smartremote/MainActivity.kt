@@ -47,13 +47,9 @@ class MainActivity : ComponentActivity() {
     private val KEY_SERVER_URL = "server_url"
     private val KEY_LAST_KNOWN_TUNNEL = "last_known_tunnel_url"
 
-    // Primary: Tailscale direct (fastest, always stable)
+    private val RAILWAY_URL = "https://smart-remote-app-production.up.railway.app"
     private val TAILSCALE_URL = "http://100.69.194.11:7070"
-    // Fallback: The backend API endpoint to auto-discover the live Cloudflare tunnel URL
-    private val TUNNEL_DISCOVER_ENDPOINTS = listOf(
-        "$TAILSCALE_URL/api/tunnel/status",
-        "http://localhost:7070/api/tunnel/status"
-    )
+    private val DEFAULT_CLOUDFLARE_URL = "https://threatening-blocked-functions-backgrounds.trycloudflare.com"
 
     private var lastBackPressTime: Long = 0
     var defaultStatusBarHeight: Int = 0
@@ -194,8 +190,29 @@ class MainActivity : ComponentActivity() {
                 return@execute
             }
 
-            // 2. Try Tailscale direct (fastest if on VPN or same network)
-            if (tryConnect(TAILSCALE_URL)) {
+            // 2. Try Railway cloud deployment (Accessible globally anywhere, anytime without VPN)
+            mainHandler.post { updateLoadingMessage("Checking Railway cloud server...") }
+            if (tryConnect(RAILWAY_URL, timeoutMs = 3000)) {
+                mainHandler.post {
+                    saveUrl(RAILWAY_URL)
+                    loadUrl(RAILWAY_URL)
+                }
+                return@execute
+            }
+
+            // 3. Try Cloudflare public edge tunnel
+            mainHandler.post { updateLoadingMessage("Checking Cloudflare secure tunnel...") }
+            if (tryConnect(DEFAULT_CLOUDFLARE_URL, timeoutMs = 3000)) {
+                mainHandler.post {
+                    saveUrl(DEFAULT_CLOUDFLARE_URL)
+                    saveTunnelCache(DEFAULT_CLOUDFLARE_URL)
+                    loadUrl(DEFAULT_CLOUDFLARE_URL)
+                }
+                return@execute
+            }
+
+            // 4. Try Tailscale direct (if device is on Tailscale)
+            if (tryConnect(TAILSCALE_URL, timeoutMs = 2500)) {
                 mainHandler.post {
                     saveUrl(TAILSCALE_URL)
                     loadUrl(TAILSCALE_URL)
@@ -203,21 +220,20 @@ class MainActivity : ComponentActivity() {
                 return@execute
             }
 
-            // 3. Auto-discover live Cloudflare tunnel URL from backend
-            mainHandler.post { updateLoadingMessage("Fetching Cloudflare tunnel URL...") }
-            val tunnelUrl = fetchLiveTunnelUrl()
-            if (tunnelUrl != null && tryConnect(tunnelUrl)) {
+            // 5. Try live tunnel discovery from local/tailscale status
+            val liveTunnel = fetchLiveTunnelUrl()
+            if (liveTunnel != null && tryConnect(liveTunnel, timeoutMs = 3000)) {
                 mainHandler.post {
-                    saveUrl(tunnelUrl)
-                    saveTunnelCache(tunnelUrl)
-                    loadUrl(tunnelUrl)
+                    saveUrl(liveTunnel)
+                    saveTunnelCache(liveTunnel)
+                    loadUrl(liveTunnel)
                 }
                 return@execute
             }
 
-            // 4. Try cached tunnel URL from last session
+            // 6. Try cached tunnel from last session
             val cachedTunnel = getCachedTunnelUrl()
-            if (cachedTunnel != null && tryConnect(cachedTunnel)) {
+            if (cachedTunnel != null && tryConnect(cachedTunnel, timeoutMs = 3000)) {
                 mainHandler.post {
                     saveUrl(cachedTunnel)
                     loadUrl(cachedTunnel)
@@ -225,10 +241,10 @@ class MainActivity : ComponentActivity() {
                 return@execute
             }
 
-            // 5. Nothing worked — show error + manual input
+            // 7. Nothing worked — show error + manual input
             mainHandler.post {
                 hideLoadingOverlay()
-                showConnectionError("Could not auto-detect Smart Remote server.\n\nMake sure the laptop is ON and the smart-remote service is running.\n\nTap 'CHANGE SERVER URL' to enter your Cloudflare or local IP manually.")
+                showConnectionError("Could not auto-connect to Smart Remote.\n\nTap 'CHANGE SERVER URL' to connect directly.")
             }
         }
     }

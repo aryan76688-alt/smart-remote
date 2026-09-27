@@ -10,6 +10,9 @@ __pycache__/
 backend/recordings/
 recordings/
 
+# Compiled third-party binaries (downloaded via install scripts)
+bin/
+
 # Local databases and logs
 *.db
 *.sqlite
