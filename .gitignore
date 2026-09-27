@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# CCTV recordings on local machine (141GB+)
+backend/recordings/
+recordings/
+
+# Local databases and logs
+*.db
+*.sqlite
+*.sqlite3
+smart_remote.db
+smart-remote.log
+smart-remote.pid
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Android build outputs and caches (keep source code)
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+.idea/
+*.iml
+
+# OS and IDE files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,75 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Wireless Transmission Arcs (Center top: x=54, y=32) -->
+    <path
+        android:pathData="M38,28 A18,18 0 0,1 70,28"
+        android:strokeWidth="2.2"
+        android:strokeColor="#FF10B981"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M43,33 A13,13 0 0,1 65,33"
+        android:strokeWidth="2.0"
+        android:strokeColor="#FF06B6D4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M48,38 A7,7 0 0,1 60,38"
+        android:strokeWidth="1.8"
+        android:strokeColor="#FF00E5FF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M54,41 A2,2 0 1,1 53.99,41"
+        android:fillColor="#FF00E5FF" />
+
+    <!-- Controller Main Chassis (Centered around y=62) -->
+    <path
+        android:pathData="M32,49 L76,49 A15,15 0 0,1 91,64 L91,66 A15,15 0 0,1 76,81 L32,81 A15,15 0 0,1 17,66 L17,64 A15,15 0 0,1 32,49 Z"
+        android:fillColor="#FF16243D"
+        android:strokeWidth="2.2"
+        android:strokeColor="#FF00E5FF" />
+
+    <!-- Left D-Pad (Center at x=30, y=65) -->
+    <path
+        android:pathData="M26,63.5 L34,63.5 A1.5,1.5 0 0,1 35.5,65 L35.5,65 A1.5,1.5 0 0,1 34,66.5 L26,66.5 A1.5,1.5 0 0,1 24.5,65 L24.5,65 A1.5,1.5 0 0,1 26,63.5 Z"
+        android:fillColor="#FF06B6D4" />
+    <path
+        android:pathData="M28.5,61 L31.5,61 A1.5,1.5 0 0,1 33,62.5 L33,67.5 A1.5,1.5 0 0,1 31.5,69 L28.5,69 A1.5,1.5 0 0,1 27,67.5 L27,62.5 A1.5,1.5 0 0,1 28.5,61 Z"
+        android:fillColor="#FF06B6D4" />
+
+    <!-- Center Terminal Display (Center at x=54, y=65) -->
+    <path
+        android:pathData="M43,55 L65,55 A4,4 0 0,1 69,59 L69,71 A4,4 0 0,1 65,75 L43,75 A4,4 0 0,1 39,71 L39,59 A4,4 0 0,1 43,55 Z"
+        android:fillColor="#FF080E1C"
+        android:strokeWidth="1.2"
+        android:strokeColor="#FF00E5FF" />
+
+    <!-- Terminal Glyph ">_" inside screen -->
+    <path
+        android:pathData="M46,60 L51,64.5 L46,69"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FF00E5FF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M54,69 L62,69"
+        android:strokeWidth="1.6"
+        android:strokeColor="#FF10B981"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Right Action Buttons (Center at x=78, y=65 - Diamond layout) -->
+    <!-- Top (Emerald) -->
+    <path android:pathData="M78,57 A2,2 0 1,1 77.99,57" android:fillColor="#FF10B981" />
+    <!-- Bottom (Cyan) -->
+    <path android:pathData="M78,71 A2,2 0 1,1 77.99,71" android:fillColor="#FF06B6D4" />
+    <!-- Left (Electric Cyan) -->
+    <path android:pathData="M71,64 A2,2 0 1,1 70.99,64" android:fillColor="#FF00E5FF" />
+    <!-- Right (Mint) -->
+    <path android:pathData="M85,64 A2,2 0 1,1 84.99,64" android:fillColor="#FF34D399" />
+</vector>

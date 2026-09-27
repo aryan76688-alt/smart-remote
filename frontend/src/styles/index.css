@@ -1,0 +1,395 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   THEME DEFINITIONS: DARK & LIGHT PALETTES
+   ========================================================================== */
+
+/* 1. Cyber Dark (Default) */
+:root, [data-theme="cyberpunk"] {
+  color-scheme: dark;
+  --theme-bg: #080d1a;
+  --theme-surface: #0d1527;
+  --theme-card: #111c35;
+  --theme-border: #1e293b;
+  --theme-accent: #06b6d4;
+  --theme-accent-hover: #0891b2;
+  --theme-accent-glow: rgba(6, 182, 212, 0.4);
+  --theme-text: #f8fafc;
+  --theme-text-muted: #94a3b8;
+}
+
+/* 2. Kali Dragon */
+[data-theme="kali"] {
+  color-scheme: dark;
+  --theme-bg: #070d19;
+  --theme-surface: #0b172a;
+  --theme-card: #0f213d;
+  --theme-border: #1a365d;
+  --theme-accent: #00a2ff;
+  --theme-accent-hover: #0082cc;
+  --theme-accent-glow: rgba(0, 162, 255, 0.4);
+  --theme-text: #f0f6fc;
+  --theme-text-muted: #8ba2c4;
+}
+
+/* 3. Matrix Green */
+[data-theme="matrix"] {
+  color-scheme: dark;
+  --theme-bg: #020803;
+  --theme-surface: #051408;
+  --theme-card: #08220f;
+  --theme-border: #14421d;
+  --theme-accent: #22c55e;
+  --theme-accent-hover: #16a34a;
+  --theme-accent-glow: rgba(34, 197, 94, 0.4);
+  --theme-text: #dcfce7;
+  --theme-text-muted: #4ade80;
+}
+
+/* 4. Dracula Violet */
+[data-theme="dracula"] {
+  color-scheme: dark;
+  --theme-bg: #110d1c;
+  --theme-surface: #181228;
+  --theme-card: #221a38;
+  --theme-border: #382a57;
+  --theme-accent: #bd93f9;
+  --theme-accent-hover: #a855f7;
+  --theme-accent-glow: rgba(189, 147, 249, 0.4);
+  --theme-text: #f8f8f2;
+  --theme-text-muted: #c084fc;
+}
+
+/* 5. Nord Arctic */
+[data-theme="nord"] {
+  color-scheme: dark;
+  --theme-bg: #0f141c;
+  --theme-surface: #17202c;
+  --theme-card: #1f2c3c;
+  --theme-border: #2e3f54;
+  --theme-accent: #38bdf8;
+  --theme-accent-hover: #0284c7;
+  --theme-accent-glow: rgba(56, 189, 248, 0.4);
+  --theme-text: #e2e8f0;
+  --theme-text-muted: #94a3b8;
+}
+
+/* 6. AMOLED Pure Black */
+[data-theme="oled"] {
+  color-scheme: dark;
+  --theme-bg: #000000;
+  --theme-surface: #09090b;
+  --theme-card: #121215;
+  --theme-border: #27272a;
+  --theme-accent: #f8fafc;
+  --theme-accent-hover: #e2e8f0;
+  --theme-accent-glow: rgba(248, 250, 252, 0.3);
+  --theme-text: #ffffff;
+  --theme-text-muted: #a1a1aa;
+}
+
+/* ==========================================================================
+   LIGHT THEMES (HIGH CONTRAST & LEGIBILITY)
+   ========================================================================== */
+
+/* 7. Clean Studio Light */
+[data-theme="light"] {
+  color-scheme: light;
+  --theme-bg: #f8fafc;
+  --theme-surface: #ffffff;
+  --theme-card: #f1f5f9;
+  --theme-border: #cbd5e1;
+  --theme-accent: #0284c7;
+  --theme-accent-hover: #0369a1;
+  --theme-accent-glow: rgba(2, 132, 199, 0.35);
+  --theme-text: #0f172a;
+  --theme-text-muted: #475569;
+}
+
+/* 8. Cyber Light (Neumorphic Tech White) */
+[data-theme="cyber-light"] {
+  color-scheme: light;
+  --theme-bg: #edf2f7;
+  --theme-surface: #ffffff;
+  --theme-card: #e2e8f0;
+  --theme-border: #94a3b8;
+  --theme-accent: #0891b2;
+  --theme-accent-hover: #0e7490;
+  --theme-accent-glow: rgba(8, 145, 178, 0.35);
+  --theme-text: #020617;
+  --theme-text-muted: #334155;
+}
+
+/* 9. Warm Solarized Light */
+[data-theme="solarized-light"] {
+  color-scheme: light;
+  --theme-bg: #fdf6e3;
+  --theme-surface: #eee8d5;
+  --theme-card: #e4dcbe;
+  --theme-border: #d3cbb3;
+  --theme-accent: #b58900;
+  --theme-accent-hover: #cb4b16;
+  --theme-accent-glow: rgba(181, 137, 0, 0.35);
+  --theme-text: #073642;
+  --theme-text-muted: #586e75;
+}
+
+/* 10. Nord Snow Storm Frost */
+[data-theme="nord-light"] {
+  color-scheme: light;
+  --theme-bg: #eceff4;
+  --theme-surface: #ffffff;
+  --theme-card: #e5e9f0;
+  --theme-border: #c2c9d6;
+  --theme-accent: #5e81ac;
+  --theme-accent-hover: #4c566a;
+  --theme-accent-glow: rgba(94, 129, 172, 0.35);
+  --theme-text: #2e3440;
+  --theme-text-muted: #4c566a;
+}
+
+/* ==========================================================================
+   GLOBAL LAYOUT & SAMSUNG GALAXY A36 VIEWPORT FIXES
+   ========================================================================== */
+
+html, body, #root {
+  height: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  background-color: var(--theme-bg, #080d1a);
+  color: var(--theme-text, #f8fafc);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--theme-bg, rgba(15, 23, 42, 0.6));
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-border, rgba(51, 65, 85, 0.8));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-accent, rgba(6, 182, 212, 0.6));
+}
+
+/* Theme Glass & Card Containers */
+.glass-panel {
+  background: var(--theme-surface, rgba(13, 21, 39, 0.75)) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--theme-border, rgba(30, 41, 59, 0.8)) !important;
+}
+
+.glass-card {
+  background: var(--theme-card, rgba(17, 28, 53, 0.6)) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--theme-border, rgba(30, 41, 59, 0.6)) !important;
+}
+
+/* Theme utility mapping */
+[data-theme] .bg-cyber-bg {
+  background-color: var(--theme-bg) !important;
+}
+[data-theme] .bg-cyber-surface {
+  background-color: var(--theme-surface) !important;
+}
+[data-theme] .bg-cyber-card {
+  background-color: var(--theme-card) !important;
+}
+[data-theme] .border-cyber-border {
+  border-color: var(--theme-border) !important;
+}
+[data-theme] .bg-slate-950 {
+  background-color: var(--theme-bg) !important;
+}
+[data-theme] .bg-slate-900 {
+  background-color: var(--theme-surface) !important;
+}
+[data-theme] .border-slate-800 {
+  border-color: var(--theme-border) !important;
+}
+
+/* ==========================================================================
+   LIGHT THEMES TEXT & ELEMENT OVERRIDES
+   ========================================================================== */
+
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-200,
+[data-theme="light"] .text-slate-300,
+[data-theme="light"] .text-white,
+[data-theme="cyber-light"] .text-slate-100,
+[data-theme="cyber-light"] .text-slate-200,
+[data-theme="cyber-light"] .text-slate-300,
+[data-theme="cyber-light"] .text-white,
+[data-theme="solarized-light"] .text-slate-100,
+[data-theme="solarized-light"] .text-slate-200,
+[data-theme="solarized-light"] .text-slate-300,
+[data-theme="solarized-light"] .text-white,
+[data-theme="nord-light"] .text-slate-100,
+[data-theme="nord-light"] .text-slate-200,
+[data-theme="nord-light"] .text-slate-300,
+[data-theme="nord-light"] .text-white {
+  color: var(--theme-text) !important;
+}
+
+[data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-slate-500,
+[data-theme="cyber-light"] .text-slate-400,
+[data-theme="cyber-light"] .text-slate-500,
+[data-theme="solarized-light"] .text-slate-400,
+[data-theme="solarized-light"] .text-slate-500,
+[data-theme="nord-light"] .text-slate-400,
+[data-theme="nord-light"] .text-slate-500 {
+  color: var(--theme-text-muted) !important;
+}
+
+/* Light themes input backgrounds & borders */
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea,
+[data-theme="cyber-light"] input,
+[data-theme="cyber-light"] select,
+[data-theme="cyber-light"] textarea,
+[data-theme="solarized-light"] input,
+[data-theme="solarized-light"] select,
+[data-theme="solarized-light"] textarea,
+[data-theme="nord-light"] input,
+[data-theme="nord-light"] select,
+[data-theme="nord-light"] textarea {
+  background-color: var(--theme-surface) !important;
+  color: var(--theme-text) !important;
+  border-color: var(--theme-border) !important;
+}
+
+/* Light themes button hover and active states */
+[data-theme="light"] .hover\:bg-slate-800:hover,
+[data-theme="cyber-light"] .hover\:bg-slate-800:hover,
+[data-theme="solarized-light"] .hover\:bg-slate-800:hover,
+[data-theme="nord-light"] .hover\:bg-slate-800:hover {
+  background-color: var(--theme-card) !important;
+}
+
+/* ==========================================================================
+   DYNAMIC ACCENT COLORS PER THEME
+   ========================================================================== */
+
+/* Kali */
+[data-theme="kali"] .text-cyan-400, [data-theme="kali"] .text-cyan-300 { color: #00a2ff !important; }
+[data-theme="kali"] .bg-cyan-600, [data-theme="kali"] .bg-cyan-500 { background-color: #00a2ff !important; color: #051020 !important; }
+[data-theme="kali"] .border-cyan-500, [data-theme="kali"] .border-cyan-800\/50 { border-color: rgba(0, 162, 255, 0.5) !important; }
+
+/* Matrix */
+[data-theme="matrix"] .text-cyan-400, [data-theme="matrix"] .text-cyan-300 { color: #22c55e !important; }
+[data-theme="matrix"] .bg-cyan-600, [data-theme="matrix"] .bg-cyan-500 { background-color: #22c55e !important; color: #020803 !important; }
+[data-theme="matrix"] .border-cyan-500, [data-theme="matrix"] .border-cyan-800\/50 { border-color: rgba(34, 197, 94, 0.5) !important; }
+
+/* Dracula */
+[data-theme="dracula"] .text-cyan-400, [data-theme="dracula"] .text-cyan-300 { color: #bd93f9 !important; }
+[data-theme="dracula"] .bg-cyan-600, [data-theme="dracula"] .bg-cyan-500 { background-color: #bd93f9 !important; color: #110d1c !important; }
+[data-theme="dracula"] .border-cyan-500, [data-theme="dracula"] .border-cyan-800\/50 { border-color: rgba(189, 147, 249, 0.5) !important; }
+
+/* Nord */
+[data-theme="nord"] .text-cyan-400, [data-theme="nord"] .text-cyan-300 { color: #38bdf8 !important; }
+[data-theme="nord"] .bg-cyan-600, [data-theme="nord"] .bg-cyan-500 { background-color: #38bdf8 !important; color: #0f141c !important; }
+[data-theme="nord"] .border-cyan-500, [data-theme="nord"] .border-cyan-800\/50 { border-color: rgba(56, 189, 248, 0.5) !important; }
+
+/* OLED */
+[data-theme="oled"] .text-cyan-400, [data-theme="oled"] .text-cyan-300 { color: #ffffff !important; }
+[data-theme="oled"] .bg-cyan-600, [data-theme="oled"] .bg-cyan-500 { background-color: #f8fafc !important; color: #000000 !important; }
+[data-theme="oled"] .border-cyan-500, [data-theme="oled"] .border-cyan-800\/50 { border-color: rgba(255, 255, 255, 0.3) !important; }
+
+/* Light */
+[data-theme="light"] .text-cyan-400, [data-theme="light"] .text-cyan-300 { color: #0284c7 !important; }
+[data-theme="light"] .bg-cyan-600, [data-theme="light"] .bg-cyan-500 { background-color: #0284c7 !important; color: #ffffff !important; }
+[data-theme="light"] .border-cyan-500 { border-color: #0284c7 !important; }
+
+/* Cyber Light */
+[data-theme="cyber-light"] .text-cyan-400, [data-theme="cyber-light"] .text-cyan-300 { color: #0891b2 !important; }
+[data-theme="cyber-light"] .bg-cyan-600, [data-theme="cyber-light"] .bg-cyan-500 { background-color: #0891b2 !important; color: #ffffff !important; }
+[data-theme="cyber-light"] .border-cyan-500 { border-color: #0891b2 !important; }
+
+/* Solarized Light */
+[data-theme="solarized-light"] .text-cyan-400, [data-theme="solarized-light"] .text-cyan-300 { color: #b58900 !important; }
+[data-theme="solarized-light"] .bg-cyan-600, [data-theme="solarized-light"] .bg-cyan-500 { background-color: #b58900 !important; color: #ffffff !important; }
+[data-theme="solarized-light"] .border-cyan-500 { border-color: #b58900 !important; }
+
+/* Nord Light */
+[data-theme="nord-light"] .text-cyan-400, [data-theme="nord-light"] .text-cyan-300 { color: #5e81ac !important; }
+[data-theme="nord-light"] .bg-cyan-600, [data-theme="nord-light"] .bg-cyan-500 { background-color: #5e81ac !important; color: #ffffff !important; }
+[data-theme="nord-light"] .border-cyan-500 { border-color: #5e81ac !important; }
+
+/* ==========================================================================
+   MOBILE & SAFE AREA HELPERS
+   ========================================================================== */
+
+.touch-control-area {
+  touch-action: none;
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
+}
+
+.safe-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px var(--theme-accent-glow, rgba(6, 182, 212, 0.4));
+  }
+  50% {
+    box-shadow: 0 0 25px var(--theme-accent-glow, rgba(6, 182, 212, 0.8));
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+/* Touch Feedback Animation */
+@keyframes touch-ripple {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}
+.animate-touch-ripple {
+  animation: touch-ripple 0.4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+/* Samsung Galaxy A36 120Hz Hardware Acceleration & Touch Polish */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.smooth-120hz {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}
+

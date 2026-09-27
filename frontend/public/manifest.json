@@ -1,0 +1,22 @@
+{
+  "short_name": "SmartRemote",
+  "name": "SMART REMOTE - Kali Linux Controller",
+  "description": "Kali Linux Mobile & Web Remote Controller over Tailscale",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#080d1a",
+  "theme_color": "#080d1a",
+  "display": "standalone",
+  "orientation": "any"
+}

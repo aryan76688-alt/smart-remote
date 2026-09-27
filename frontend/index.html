@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" class="dark" style="background-color: #080d1a; color: #f8fafc;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>SMART REMOTE - Kali Linux Controller</title>
+    <meta name="description" content="Kali Linux Mobile & Web Remote Controller over Tailscale" />
+    <meta name="theme-color" content="#080d1a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/pwa-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      html, body {
+        background-color: #080d1a !important;
+        color: #f8fafc;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow-x: hidden;
+      }
+      @keyframes pulseSlow {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(0.97); }
+      }
+      .init-loader {
+        animation: pulseSlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+    </style>
+    <script>
+      // Anti-White Screen Self-Healing Mechanism
+      window.addEventListener('error', function (e) {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          console.warn('[SmartRemote] Asset failed to load, self-healing cache and reloading...', e);
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+              for (var reg of registrations) { reg.unregister(); }
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then(function (names) {
+              names.forEach(function (name) { caches.delete(name); });
+            });
+          }
+          setTimeout(function() { window.location.reload(true); }, 300);
+        }
+      }, true);
+
+      // Watchdog: If #root is empty after 2.5s, auto-heal and reload once
+      setTimeout(function() {
+        var root = document.getElementById('root');
+        if (root && (!root.children || root.children.length === 0 || root.querySelector('.init-loader'))) {
+          if (!sessionStorage.getItem('smart_remote_self_healed')) {
+            sessionStorage.setItem('smart_remote_self_healed', 'true');
+            console.warn('[SmartRemote] White screen / stall detected. Auto-recovering...');
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                for (var r of regs) { r.unregister(); }
+              });
+            }
+            if ('caches' in window) {
+              caches.keys().then(function (k) {
+                k.forEach(function (n) { caches.delete(n); });
+              });
+            }
+            window.location.reload(true);
+          }
+        }
+      }, 2500);
+    </script>
+  </head>
+  <body class="bg-cyber-bg text-slate-100 antialiased overflow-x-hidden selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div id="root">
+      <!-- Dark Splash Fallback to prevent any initial white screen flash -->
+      <div class="init-loader" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; height: 100dvh; background-color: #080d1a; font-family: monospace; user-select: none;">
+        <img src="/pwa-192.png" alt="Smart Remote" style="width: 72px; height: 72px; border-radius: 18px; margin-bottom: 16px; box-shadow: 0 0 25px rgba(6, 182, 212, 0.3);" />
+        <div style="font-size: 18px; font-weight: 800; letter-spacing: 2px; color: #f8fafc; text-transform: uppercase;">
+          SMART REMOTE
+        </div>
+        <div style="font-size: 11px; color: #06b6d4; margin-top: 6px; letter-spacing: 1px;">
+          CONNECTING TO KALI LINUX...
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>
