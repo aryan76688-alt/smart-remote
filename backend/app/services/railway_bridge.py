@@ -7,6 +7,7 @@ import threading
 import requests
 from typing import Optional
 from websockets.sync.client import connect as ws_connect
+from websockets.exceptions import ConnectionClosed
 
 from app.services.laptop_call_client import handle_incoming_call_on_laptop, close_laptop_call_interface
 from app.services.tunnel_manager import tunnel_manager
@@ -105,9 +106,14 @@ class RailwayBridge:
 
                         except TimeoutError:
                             continue
+                        except ConnectionClosed:
+                            print("[RAILWAY-BRIDGE] Connection to Railway closed. Reconnecting...")
+                            break
                         except Exception as parse_err:
                             if self.running and "timed out" not in str(parse_err).lower():
                                 print(f"[RAILWAY-BRIDGE] Message loop notice: {parse_err}")
+                                if "close" in str(parse_err).lower() or "broken" in str(parse_err).lower():
+                                    break
 
             except Exception as conn_err:
                 if self.running:
