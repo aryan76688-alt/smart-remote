@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
 
     private val RAILWAY_URL = "https://smart-remote-app-production.up.railway.app"
     private val TAILSCALE_URL = "http://100.69.194.11:7070"
-    private val DEFAULT_CLOUDFLARE_URL = "https://threatening-blocked-functions-backgrounds.trycloudflare.com"
+    private val LOCAL_WIFI_URL = "http://192.168.31.141:7070"
 
     private var lastBackPressTime: Long = 0
     var defaultStatusBarHeight: Int = 0
@@ -171,81 +171,21 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        // Smart URL Discovery: find the best URL to connect to
-        showLoadingOverlay("Connecting to Smart Remote...\nFinding best server...")
+        // Immediate direct load using Railway cloud server as default
+        showLoadingOverlay("Connecting to Smart Remote...\nLoading Railway Cloud...")
         discoverAndLoad()
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // SMART URL DISCOVERY
-    // Priority: 1) User-saved URL  2) Tailscale IP  3) Cloudflare Tunnel (live)
-    //           4) Last known tunnel  5) Manual input
+    // SMART URL LOADER
+    // Priority: 1) User custom-saved URL (if set and not default)
+    //           2) Railway Cloud Server (Global anywhere, anytime without VPN)
     // ──────────────────────────────────────────────────────────────────────────
     private fun discoverAndLoad() {
-        executor.execute {
-            // 1. Try user-saved URL first
-            val savedUrl = getSavedUrl()
-            if (savedUrl != null && tryConnect(savedUrl)) {
-                mainHandler.post { loadUrl(savedUrl) }
-                return@execute
-            }
-
-            // 2. Try Railway cloud deployment (Accessible globally anywhere, anytime without VPN)
-            mainHandler.post { updateLoadingMessage("Checking Railway cloud server...") }
-            if (tryConnect(RAILWAY_URL, timeoutMs = 3000)) {
-                mainHandler.post {
-                    saveUrl(RAILWAY_URL)
-                    loadUrl(RAILWAY_URL)
-                }
-                return@execute
-            }
-
-            // 3. Try Cloudflare public edge tunnel
-            mainHandler.post { updateLoadingMessage("Checking Cloudflare secure tunnel...") }
-            if (tryConnect(DEFAULT_CLOUDFLARE_URL, timeoutMs = 3000)) {
-                mainHandler.post {
-                    saveUrl(DEFAULT_CLOUDFLARE_URL)
-                    saveTunnelCache(DEFAULT_CLOUDFLARE_URL)
-                    loadUrl(DEFAULT_CLOUDFLARE_URL)
-                }
-                return@execute
-            }
-
-            // 4. Try Tailscale direct (if device is on Tailscale)
-            if (tryConnect(TAILSCALE_URL, timeoutMs = 2500)) {
-                mainHandler.post {
-                    saveUrl(TAILSCALE_URL)
-                    loadUrl(TAILSCALE_URL)
-                }
-                return@execute
-            }
-
-            // 5. Try live tunnel discovery from local/tailscale status
-            val liveTunnel = fetchLiveTunnelUrl()
-            if (liveTunnel != null && tryConnect(liveTunnel, timeoutMs = 3000)) {
-                mainHandler.post {
-                    saveUrl(liveTunnel)
-                    saveTunnelCache(liveTunnel)
-                    loadUrl(liveTunnel)
-                }
-                return@execute
-            }
-
-            // 6. Try cached tunnel from last session
-            val cachedTunnel = getCachedTunnelUrl()
-            if (cachedTunnel != null && tryConnect(cachedTunnel, timeoutMs = 3000)) {
-                mainHandler.post {
-                    saveUrl(cachedTunnel)
-                    loadUrl(cachedTunnel)
-                }
-                return@execute
-            }
-
-            // 7. Nothing worked — show error + manual input
-            mainHandler.post {
-                hideLoadingOverlay()
-                showConnectionError("Could not auto-connect to Smart Remote.\n\nTap 'CHANGE SERVER URL' to connect directly.")
-            }
+        val saved = getSavedUrl()
+        val targetUrl = if (!saved.isNullOrBlank() && saved != RAILWAY_URL) saved else RAILWAY_URL
+        mainHandler.post {
+            loadUrl(targetUrl)
         }
     }
 
@@ -309,7 +249,7 @@ class MainActivity : ComponentActivity() {
     }
 
     fun getServerUrl(): String {
-        return getSavedUrl() ?: TAILSCALE_URL
+        return getSavedUrl() ?: RAILWAY_URL
     }
 
     private fun saveUrl(url: String) {
@@ -415,20 +355,35 @@ class MainActivity : ComponentActivity() {
         }
 
         val retryBtn = Button(this).apply {
-            text = "RETRY"
+            text = "RETRY (RAILWAY CLOUD)"
             setTextColor(Color.parseColor("#020617"))
             setBackgroundColor(Color.parseColor("#06b6d4"))
             textSize = 13f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setOnClickListener {
                 errorLayout.visibility = View.GONE
-                showLoadingOverlay("Retrying connection...")
-                discoverAndLoad()
+                saveUrl(RAILWAY_URL)
+                showLoadingOverlay("Connecting to Railway Cloud...")
+                loadUrl(RAILWAY_URL)
+            }
+        }
+
+        val tailscaleBtn = Button(this).apply {
+            text = "USE TAILSCALE VPN (100.69.194.11)"
+            setTextColor(Color.parseColor("#38bdf8"))
+            setBackgroundColor(Color.parseColor("#0f172a"))
+            textSize = 12f
+            setPadding(0, 16, 0, 16)
+            setOnClickListener {
+                errorLayout.visibility = View.GONE
+                saveUrl(TAILSCALE_URL)
+                showLoadingOverlay("Connecting to Tailscale IP...")
+                loadUrl(TAILSCALE_URL)
             }
         }
 
         val changeUrlBtn = Button(this).apply {
-            text = "ENTER SERVER URL MANUALLY"
+            text = "ENTER CUSTOM SERVER URL"
             setTextColor(Color.parseColor("#e2e8f0"))
             setBackgroundColor(Color.parseColor("#1e293b"))
             textSize = 12f
@@ -439,6 +394,7 @@ class MainActivity : ComponentActivity() {
         layout.addView(title)
         layout.addView(errorText)
         layout.addView(retryBtn)
+        layout.addView(tailscaleBtn)
         layout.addView(changeUrlBtn)
         return layout
     }
@@ -464,6 +420,7 @@ class MainActivity : ComponentActivity() {
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        settings.databaseEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.allowFileAccess = true
         settings.allowContentAccess = true
@@ -471,8 +428,9 @@ class MainActivity : ComponentActivity() {
         settings.useWideViewPort = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         settings.cacheMode = WebSettings.LOAD_DEFAULT
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         val defaultUa = settings.userAgentString
-        settings.userAgentString = "$defaultUa SmartRemoteMobileAndroid/2.0"
+        settings.userAgentString = "$defaultUa SmartRemoteMobileAndroid/5.0-Railway"
     }
 
     private fun setupWebViewClients() {
@@ -520,13 +478,17 @@ class MainActivity : ComponentActivity() {
                 errorLayout.visibility = View.GONE
             }
 
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                hideLoadingOverlay()
+                errorLayout.visibility = View.GONE
+            }
+
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
-                    // Auto-retry with discovery instead of just showing error
-                    mainHandler.postDelayed({
-                        showLoadingOverlay("Connection lost. Reconnecting...")
-                        discoverAndLoad()
-                    }, 1500)
+                    hideLoadingOverlay()
+                    val failedUrl = request.url?.toString() ?: ""
+                    showConnectionError("Could not connect to:\n$failedUrl\n\nCheck your internet connection or tap below to reconnect.")
                 }
             }
         }
@@ -541,12 +503,12 @@ class MainActivity : ComponentActivity() {
             setSingleLine(true)
             setPadding(32, 24, 32, 24)
             setTextColor(Color.BLACK)
-            hint = "https://your-tunnel.trycloudflare.com"
+            hint = RAILWAY_URL
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Smart Remote Server URL")
-            .setMessage("Enter your Cloudflare Tunnel URL (e.g. https://xxx.trycloudflare.com)\nor Tailscale IP (http://100.x.x.x:7070)\nor local IP (http://192.168.x.x:7070)")
+            .setTitle("Server Connection")
+            .setMessage("Railway Cloud Server (Global anywhere, no VPN needed):\n$RAILWAY_URL\n\nOr enter custom Tailscale/Local IP:")
             .setView(input)
             .setPositiveButton("Connect") { _, _ ->
                 val newUrl = input.text.toString().trim()
@@ -557,9 +519,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
             .setNegativeButton("Cancel", null)
-            .setNeutralButton("Auto-Detect") { _, _ ->
-                showLoadingOverlay("Auto-detecting server...")
-                discoverAndLoad()
+            .setNeutralButton("Railway Default") { _, _ ->
+                saveUrl(RAILWAY_URL)
+                errorLayout.visibility = View.GONE
+                loadUrl(RAILWAY_URL)
             }
             .show()
     }

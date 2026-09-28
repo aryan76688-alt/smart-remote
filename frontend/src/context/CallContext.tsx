@@ -50,8 +50,10 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!active) return;
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryRole = urlParams.get('role');
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || Boolean((window as any).AndroidBridge);
-      const role = isMobileDevice ? 'mobile' : 'laptop';
+      const role = queryRole || (isMobileDevice ? 'mobile' : 'laptop');
       const deviceId = isMobileDevice ? 'mobile-client' : 'laptop-client';
       const wsUrl = `${protocol}//${host}/api/call/ws?role=${role}&device_id=${deviceId}`;
 
@@ -254,6 +256,11 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setSessionId(sid);
     setCallState('calling');
     setRemoteRole('laptop');
+
+    // Directly open the video call interface on Kali Linux screen with zero prompts
+    try {
+      fetch('/api/call/direct_start', { method: 'POST' }).catch(() => {});
+    } catch {}
 
     const stream = await getUserMediaStream(facingMode);
     const pc = createPeerConnection();

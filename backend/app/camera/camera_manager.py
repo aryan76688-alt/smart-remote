@@ -1009,19 +1009,14 @@ class CameraManager:
         """Ensures Kali Linux hardware ALSA mixer routes capture to the physical internal laptop microphone and sets optimal levels."""
         try:
             # Route Capture Source to Internal Mic (item 0 on ASUS ALC256)
-            subprocess.run(["amixer", "cset", "numid=6", "0"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            subprocess.run(["amixer", "-c", "0", "cset", "numid=6", "0"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
             # Ensure capture switch is enabled (unmuted)
-            subprocess.run(["amixer", "set", "Capture", "cap"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-            if getattr(self, "audio_noise_cancellation", True):
-                # Clean gain headroom to prevent analog clipping while ensuring clear speech
-                subprocess.run(["amixer", "set", "Capture", "58"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-                subprocess.run(["amixer", "set", "Internal Mic Boost", "2"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-                subprocess.run(["amixer", "set", "Digital", "85"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-            else:
-                # Raw capture with maximum boost
-                subprocess.run(["amixer", "set", "Capture", "63"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-                subprocess.run(["amixer", "set", "Internal Mic Boost", "3"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-                subprocess.run(["amixer", "set", "Digital", "100"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            subprocess.run(["amixer", "-c", "0", "set", "Capture", "cap"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            subprocess.run(["amixer", "-c", "0", "set", "Capture", "63"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            subprocess.run(["amixer", "-c", "0", "set", "Internal Mic Boost", "3"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            subprocess.run(["amixer", "-c", "0", "set", "Internal Mic Boost,0", "3"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            subprocess.run(["amixer", "-c", "0", "set", "Internal Mic Boost,1", "3"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            subprocess.run(["amixer", "-c", "0", "set", "Digital", "110"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
         except Exception as e:
             print(f"[AUDIO] Microphone config notice: {e}")
 
@@ -1054,22 +1049,16 @@ class CameraManager:
             if use_denoise:
                 cmd.extend([
                     "-af",
-                    # Full FFT-based noise cancellation pipeline (verified: reduces noise floor to -141dB)
-                    # 1. highpass: remove low-frequency rumble (AC hum, desk vibrations)
-                    # 2. lowpass: remove high-frequency hiss above speech band
-                    # 3. afftdn: FFT adaptive noise denoiser — the core noise cancellation
-                    #    nr=28: noise reduction strength (0-97), nf=-30: noise floor dBFS
-                    #    tn=1: track/adapt noise profile continuously
-                    # 4. agate: noise gate to silence anything below speech level
-                    # 5. volume: restore perceived loudness after filtering
-                    # 6. alimiter: hard limiter to prevent clipping at output
-                    "highpass=f=180,lowpass=f=5500,"
-                    "afftdn=nr=28:nf=-30:tn=1,"
-                    "agate=threshold=-38dB:ratio=5:range=-60dB:attack=10:release=150,"
-                    "volume=1.8,alimiter=limit=0.92"
+                    # Clean adaptive noise filter tuned for laptop microphone:
+                    # 1. highpass=f=75: eliminate low AC rumble & desk vibrations
+                    # 2. lowpass=f=8000: preserve full vocal clarity while eliminating high hiss
+                    # 3. afftdn=nr=10:nf=-52:tn=1: gentle FFT noise suppression without clipping quiet speech
+                    # 4. volume=3.5: amplify speech clearly for mobile speaker playback
+                    # 5. alimiter=limit=0.96: prevent any digital clipping
+                    "highpass=f=75,lowpass=f=8000,afftdn=nr=10:nf=-52:tn=1,volume=3.5,alimiter=limit=0.96"
                 ])
             else:
-                cmd.extend(["-af", "highpass=f=80,volume=2.0"])
+                cmd.extend(["-af", "highpass=f=60,volume=3.5,alimiter=limit=0.96"])
             cmd.extend([
                 "-c:a", "libmp3lame",
                 "-b:a", "96k",
@@ -1348,13 +1337,10 @@ class CameraManager:
                         if getattr(self, "audio_noise_cancellation", True):
                             audio_cmd.extend([
                                 "-af",
-                                "highpass=f=180,lowpass=f=5500,"
-                                "afftdn=nr=28:nf=-30:tn=1,"
-                                "agate=threshold=-38dB:ratio=5:range=-60dB:attack=10:release=150,"
-                                "volume=1.8,alimiter=limit=0.92"
+                                "highpass=f=75,lowpass=f=8000,afftdn=nr=10:nf=-52:tn=1,volume=3.5,alimiter=limit=0.96"
                             ])
                         else:
-                            audio_cmd.extend(["-af", "highpass=f=80,volume=2.0"])
+                            audio_cmd.extend(["-af", "highpass=f=60,volume=3.5,alimiter=limit=0.96"])
                         audio_cmd.extend(["-c:a", "aac", "-b:a", "96k", "-f", "adts", str(temp_audio_path)])
                         audio_proc = subprocess.Popen(
                             audio_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL

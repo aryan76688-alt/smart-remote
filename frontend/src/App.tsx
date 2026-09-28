@@ -28,6 +28,7 @@ import { DevicesPage } from './pages/DevicesPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CctvPage } from './pages/CctvPage';
+import { LaptopCallPage } from './pages/LaptopCallPage';
 
 const AppContent: React.FC = () => {
   const {
@@ -70,6 +71,15 @@ const AppContent: React.FC = () => {
     localStorage.removeItem('smart_remote_auth_token');
     setAppFlow('login');
   };
+
+  // Direct Laptop Video Call Interface (Zero friction, instant connect)
+  if (typeof window !== 'undefined' && (
+    window.location.pathname.includes('/call-laptop') ||
+    window.location.search.includes('call-laptop') ||
+    (new URLSearchParams(window.location.search)).get('role') === 'laptop'
+  )) {
+    return <LaptopCallPage />;
+  }
 
   // PAGE 1: Login Page with ARYAN / Aryan@2007
   if (appFlow === 'login') {

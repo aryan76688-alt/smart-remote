@@ -95,8 +95,10 @@ class CallManager:
 
             if target_role == "laptop":
                 try:
-                    from app.services.laptop_call_client import handle_incoming_call_on_laptop
-                    handle_incoming_call_on_laptop(session_id)
+                    is_cloud = bool(os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RAILWAY_PROJECT_ID"))
+                    if not is_cloud:
+                        from app.services.laptop_call_client import handle_incoming_call_on_laptop
+                        handle_incoming_call_on_laptop(session_id, "http://localhost:7070")
                 except Exception as e:
                     print(f"[CALL] Laptop ring alert notice: {e}")
 
@@ -173,6 +175,12 @@ class CallManager:
                 }, sender_conn_id=conn_id)
                 self.current_call = None
 
+                try:
+                    from app.services.laptop_call_client import close_laptop_call_interface
+                    close_laptop_call_interface()
+                except Exception:
+                    pass
+
         elif msg_type in ("webrtc_offer", "webrtc_answer", "ice_candidate"):
             # Relay WebRTC signaling payload directly to peer
             target_role = "laptop" if caller_role == "mobile" else "mobile"
@@ -195,6 +203,28 @@ async def call_websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"[CALL-WS] Error: {e}")
         call_manager.disconnect(conn_id)
+
+@router.post("/direct_start")
+async def direct_start_call(request: Request):
+    """Directly triggers the full video call interface to open immediately on the Kali Linux laptop display with camera and mic."""
+    session_id = str(uuid.uuid4())[:8]
+    is_cloud = bool(os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RAILWAY_PROJECT_ID"))
+    if is_cloud:
+        # Broadcast to connected laptop clients via WebSocket
+        await call_manager.broadcast_to_role("laptop", {
+            "type": "incoming_call",
+            "session_id": session_id,
+            "caller_role": "mobile",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        return {"success": True, "session_id": session_id, "message": "Call event signaled to Kali Linux laptop via Railway."}
+    else:
+        try:
+            from app.services.laptop_call_client import handle_incoming_call_on_laptop
+            handle_incoming_call_on_laptop(session_id, "http://localhost:7070")
+            return {"success": True, "session_id": session_id, "message": "Video call interface opened directly on Kali Linux laptop screen."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 @router.get("/status")
 def get_call_status():

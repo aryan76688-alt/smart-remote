@@ -79,8 +79,20 @@ def on_startup():
     except Exception as e:
         print(f"[CCTV] Startup autostart warning: {e}")
 
+    # Start Railway cloud bridge for instant direct video calls & tunnel sync
+    try:
+        from app.services.railway_bridge import railway_bridge
+        railway_bridge.start()
+    except Exception as e:
+        print(f"[RAILWAY-BRIDGE] Startup warning: {e}")
+
 @app.on_event("shutdown")
 def on_shutdown():
+    try:
+        from app.services.railway_bridge import railway_bridge
+        railway_bridge.stop()
+    except Exception:
+        pass
     try:
         tunnel_manager.stop()
     except Exception:

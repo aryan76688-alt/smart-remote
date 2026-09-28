@@ -62,3 +62,29 @@ def tunnel_ping():
         "tunnel_active": tunnel_manager.status == "active",
         "public_url": tunnel_manager.public_url
     }
+
+
+_registered_laptop_node = {
+    "tunnel_url": None,
+    "tailscale_ip": None,
+    "last_seen": 0
+}
+
+class RegisterNodeRequest(BaseModel):
+    tunnel_url: Optional[str] = None
+    tailscale_ip: Optional[str] = None
+
+@router.post("/register_node")
+def register_node(req: RegisterNodeRequest):
+    global _registered_laptop_node
+    if req.tunnel_url:
+        _registered_laptop_node["tunnel_url"] = req.tunnel_url.rstrip("/")
+    if req.tailscale_ip:
+        _registered_laptop_node["tailscale_ip"] = req.tailscale_ip
+    _registered_laptop_node["last_seen"] = time.time()
+    return {"success": True, "node": _registered_laptop_node}
+
+@router.get("/registered_node")
+def get_registered_node():
+    return _registered_laptop_node
+

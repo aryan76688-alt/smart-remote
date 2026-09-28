@@ -223,8 +223,9 @@ export const CctvPage: React.FC = () => {
     const audio = audioRef.current;
     if (!audio) return;
     setAudioEnabled(true);
-    if (!audio.src || audio.paused) {
-      audio.src = `/api/camera/laptop/audio?denoise=${noiseCancellation ? 1 : 0}&t=${Date.now()}`;
+    const targetUrl = `/api/camera/laptop/audio?denoise=${noiseCancellation ? 1 : 0}&t=${Date.now()}`;
+    if (!audio.src || audio.paused || audio.ended) {
+      audio.src = targetUrl;
     }
     audio.volume = audioVolume;
     audio.play()
@@ -248,25 +249,28 @@ export const CctvPage: React.FC = () => {
       startAudioPlayback();
     } else {
       audio.pause();
+      audio.src = '';
       setAudioPlaying(false);
       setAudioBlocked(false);
     }
   };
 
-  // One-time gesture listener to unlock audio autoplay on mobile
+  // Continuous gesture listener to unlock audio autoplay on mobile
   useEffect(() => {
+    if (!audioEnabled || audioPlaying) return;
+
     const unlockAudio = () => {
-      if (audioEnabled && audioRef.current && audioRef.current.paused) {
+      if (audioEnabled && audioRef.current && (audioRef.current.paused || !audioPlaying)) {
         startAudioPlayback();
       }
     };
-    window.addEventListener('click', unlockAudio, { once: true });
-    window.addEventListener('touchstart', unlockAudio, { once: true });
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
     return () => {
       window.removeEventListener('click', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
     };
-  }, [audioEnabled]);
+  }, [audioEnabled, audioPlaying, noiseCancellation, audioVolume]);
 
   // Screen Stealth state
   const [screenIsOff, setScreenIsOff] = useState<boolean>(true);
@@ -516,19 +520,40 @@ export const CctvPage: React.FC = () => {
 
   return (
     <div className="flex-1 w-full max-w-6xl mx-auto p-3 sm:p-5 space-y-4 pb-24 safe-bottom">
-      {/* Live microphone audio element with explicit event handlers */}
+      {/* Live microphone audio element with explicit event handlers and auto-recovery */}
       <audio
         ref={audioRef}
         playsInline
-        preload="none"
+        preload="auto"
         onPlay={() => {
           setAudioPlaying(true);
           setAudioBlocked(false);
         }}
-        onPause={() => setAudioPlaying(false)}
+        onPause={() => {
+          if (audioEnabled) {
+            setAudioPlaying(false);
+          }
+        }}
         onError={() => {
           setAudioPlaying(false);
           setAudioBlocked(true);
+          // Auto recover after momentary connection interruption
+          if (audioEnabled) {
+            setTimeout(() => {
+              if (audioEnabled && audioRef.current) {
+                startAudioPlayback();
+              }
+            }, 1500);
+          }
+        }}
+        onStalled={() => {
+          if (audioEnabled && audioRef.current) {
+            setTimeout(() => {
+              if (audioEnabled && audioRef.current && audioRef.current.paused) {
+                audioRef.current.play().catch(() => {});
+              }
+            }, 1000);
+          }
         }}
       />
 
