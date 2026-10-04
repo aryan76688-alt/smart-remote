@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import {
   Settings, Wifi, Shield, Cpu, Mic,
-  Check, Smartphone, Globe, Power
+  Check, Smartphone, Globe, Power, Sparkles, Upload
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
 import { GlobalAccessSettings } from '../components/settings/GlobalAccessSettings';
+import { ClipboardSyncCard } from '../components/productivity/ClipboardSyncCard';
+import { QuickDropModal } from '../components/productivity/QuickDropModal';
+import { AppLauncherGrid } from '../components/productivity/AppLauncherGrid';
+import { BatteryHealthCard } from '../components/productivity/BatteryHealthCard';
+import { GeminiBrainCard } from '../components/productivity/GeminiBrainCard';
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -17,6 +22,7 @@ export const SettingsPage: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false);
   const [autostartEnabled, setAutostartEnabled] = useState<boolean>(true);
   const [autostartLoading, setAutostartLoading] = useState<boolean>(false);
+  const [quickDropOpen, setQuickDropOpen] = useState<boolean>(false);
 
   useEffect(() => {
     api.getSettings().then(s => {
@@ -70,6 +76,7 @@ export const SettingsPage: React.FC = () => {
 
   const sections = [
     { id: 'general', label: 'General & Themes', icon: Settings },
+    { id: 'productivity', label: 'AI Brain & Power Tools', icon: Sparkles },
     { id: 'global', label: 'Global Access (Anywhere)', icon: Globe },
     { id: 'connection', label: 'Connection', icon: Wifi },
     { id: 'remote', label: 'Remote & Input', icon: Smartphone },
@@ -266,6 +273,39 @@ export const SettingsPage: React.FC = () => {
           </div>
         )}
 
+        {/* PRODUCTIVITY & AI TOOLS */}
+        {activeSection === 'productivity' && (
+          <div className="space-y-6 max-w-4xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-purple-950/40 via-slate-900 to-cyan-950/40 border border-purple-500/30 p-4 rounded-2xl">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                  <span>Productivity &amp; AI Intelligence Hub</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Gemini Brain, Universal Clipboard Sync, AirDrop-style Quick Drop, Battery Guard, and Remote App Launcher.
+                </p>
+              </div>
+              <button
+                onClick={() => setQuickDropOpen(true)}
+                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all shrink-0"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Quick Drop File</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <BatteryHealthCard />
+              <ClipboardSyncCard />
+            </div>
+
+            <GeminiBrainCard />
+
+            <AppLauncherGrid />
+          </div>
+        )}
+
         {/* GLOBAL ACCESS */}
         {activeSection === 'global' && (
           <GlobalAccessSettings />
@@ -395,6 +435,11 @@ export const SettingsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <QuickDropModal
+        isOpen={quickDropOpen}
+        onClose={() => setQuickDropOpen(false)}
+      />
     </div>
   );
 };

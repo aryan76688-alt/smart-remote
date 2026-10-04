@@ -2,19 +2,25 @@ import React, { useState } from 'react';
 import {
   Terminal, Monitor, Gamepad2, Folder, Cpu, Bot, Tv, Camera,
   Lock, RotateCcw, Power, Wifi, HardDrive, Activity, ArrowRight, Mic,
-  Globe, QrCode, Smartphone
+  Globe, QrCode, Smartphone, ShieldAlert, Upload, Sparkles
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useVoice } from '../context/VoiceContext';
 import { api } from '../services/api';
 import { GlobalAccessModal } from '../components/common/GlobalAccessModal';
+import { SirenModal } from '../components/intercom/SirenModal';
+import { QuickDropModal } from '../components/productivity/QuickDropModal';
+import { ClipboardSyncCard } from '../components/productivity/ClipboardSyncCard';
+import { BatteryHealthCard } from '../components/productivity/BatteryHealthCard';
 
 export const DashboardPage: React.FC = () => {
   const { setActiveRoute, systemInfo, tailscaleIp, addNotification, isApk } = useApp();
   const { systemStats, latencyMs } = useWebSocket();
   const { startListening } = useVoice();
   const [showGlobalModal, setShowGlobalModal] = useState<boolean>(false);
+  const [showSirenModal, setShowSirenModal] = useState<boolean>(false);
+  const [showQuickDrop, setShowQuickDrop] = useState<boolean>(false);
 
   const takeQuickScreenshot = async () => {
     try {
@@ -33,6 +39,9 @@ export const DashboardPage: React.FC = () => {
   };
 
   const quickActions = [
+    { label: '🚨 Siren Alarm', icon: ShieldAlert, action: () => setShowSirenModal(true), color: 'text-rose-500' },
+    { label: 'Quick Drop', icon: Upload, action: () => setShowQuickDrop(true), color: 'text-cyan-400' },
+    { label: 'AI Brain', icon: Sparkles, action: () => setActiveRoute('/settings'), color: 'text-purple-400' },
     { label: 'Open Terminal', icon: Terminal, action: () => setActiveRoute('/terminal'), color: 'text-cyan-400' },
     { label: 'Screen Mirror', icon: Monitor, action: () => setActiveRoute('/mirror'), color: 'text-emerald-400' },
     { label: 'Touchpad', icon: Gamepad2, action: () => setActiveRoute('/remote'), color: 'text-purple-400' },
@@ -225,6 +234,12 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Hardware Health & Universal Clipboard Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <BatteryHealthCard />
+        <ClipboardSyncCard />
+      </div>
+
       {/* Quick Action Matrix */}
       <div className="space-y-3">
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
@@ -253,6 +268,18 @@ export const DashboardPage: React.FC = () => {
       <GlobalAccessModal
         isOpen={showGlobalModal}
         onClose={() => setShowGlobalModal(false)}
+      />
+
+      {/* Emergency Siren & Intercom Modal */}
+      <SirenModal
+        isOpen={showSirenModal}
+        onClose={() => setShowSirenModal(false)}
+      />
+
+      {/* Quick Drop Modal */}
+      <QuickDropModal
+        isOpen={showQuickDrop}
+        onClose={() => setShowQuickDrop(false)}
       />
     </div>
   );

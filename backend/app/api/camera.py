@@ -33,12 +33,6 @@ def get_camera_status():
 @router.get("/laptop/stream")
 def stream_laptop_camera(quality: int = Query(75, ge=30, le=95), fps: int = Query(30, ge=5, le=60)):
     """MJPEG stream of Kali Linux laptop webcam in HD to view in mobile browser."""
-                headers={
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "X-Accel-Buffering": "no"
-                }
-            )
-
     return StreamingResponse(
         camera_manager.mjpeg_generator(quality=quality, target_fps=fps),
         media_type="multipart/x-mixed-replace; boundary=frame",
@@ -389,4 +383,59 @@ def download_cctv_cloud_recording(identifier: str):
 
     download_url = f"https://drive.google.com/uc?export=download&id={gdrive_id}"
     return RedirectResponse(url=download_url)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# EMERGENCY REMOTE SIREN & INTERCOM
+# ──────────────────────────────────────────────────────────────────────────
+from app.services.intercom_service import intercom_service
+from app.services.gemini_service import gemini_service
+from fastapi import UploadFile, File
+
+@router.get("/siren/status")
+def get_siren_status():
+    """Returns whether the emergency siren is currently sounding."""
+    return {"active": intercom_service.is_siren_active()}
+
+@router.post("/siren/trigger")
+def trigger_siren(payload: dict = Body(default={})):
+    """Starts or stops the emergency maximum-volume alarm on laptop speakers."""
+    action = payload.get("action", "start")
+    duration = int(payload.get("duration_sec", 30))
+    if action == "stop":
+        return intercom_service.stop_emergency_siren()
+    return intercom_service.start_emergency_siren(duration_sec=duration)
+
+@router.post("/intercom/speak")
+async def broadcast_intercom(audio_file: UploadFile = File(...)):
+    """Receives voice audio from phone mic and broadcasts out laptop speakers in real-time."""
+    data = await audio_file.read()
+    fmt = "webm"
+    if audio_file.filename and "." in audio_file.filename:
+        fmt = audio_file.filename.rsplit(".", 1)[-1]
+    return intercom_service.play_intercom_audio(data, audio_format=fmt)
+
+@router.post("/cctv/ai-analyze")
+def analyze_cctv_frame(payload: dict = Body(default={})):
+    """Analyzes the latest CCTV snapshot or given event snapshot with Gemini Vision."""
+    event_id = payload.get("event_id")
+    target_img = None
+    if event_id:
+        img_p = camera_manager.cctv_events_dir / f"{event_id}.jpg"
+        if img_p.exists():
+            target_img = img_p.read_bytes()
+
+    if not target_img:
+        # Grab current camera frame
+        frame = camera_manager.get_laptop_frame()
+        if frame is not None:
+            import cv2
+            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            target_img = buf.tobytes()
+
+    if not target_img:
+        return {"success": False, "summary": "No camera frame available to analyze."}
+
+    return gemini_service.analyze_security_frame(target_img)
+
 

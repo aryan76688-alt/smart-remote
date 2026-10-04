@@ -452,5 +452,62 @@ export const api = {
     gdrive_folder: string;
     download_url: string;
   }>>('/api/camera/cctv/intercom-history'),
+
+  // ── Productivity & Smart Tools ──────────────────────────────────────────
+  getClipboard: () => request<{ success: boolean; text: string; length: number }>('/api/productivity/clipboard'),
+  setClipboard: (text: string) => request<{ success: boolean; message: string }>('/api/productivity/clipboard', {
+    method: 'POST',
+    body: JSON.stringify({ text })
+  }),
+  quickDropFile: async (file: File): Promise<{ success: boolean; filename: string; saved_path: string; size_bytes: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/productivity/quick-drop', {
+      method: 'POST',
+      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+      body: formData
+    });
+    return res.json();
+  },
+  getApps: () => request<{ apps: Array<{ id: string; name: string; icon: string; installed: boolean; running: boolean }> }>('/api/productivity/apps'),
+  launchApp: (app_id: string) => request<{ success: boolean; message: string }>('/api/productivity/apps/launch', {
+    method: 'POST',
+    body: JSON.stringify({ app_id })
+  }),
+  killApp: (app_id: string) => request<{ success: boolean; message: string }>('/api/productivity/apps/kill', {
+    method: 'POST',
+    body: JSON.stringify({ app_id })
+  }),
+  getBattery: () => request<{
+    percentage: number;
+    status: string;
+    is_plugged: boolean;
+    overcharge_warning: boolean;
+    low_battery_warning: boolean;
+  }>('/api/productivity/battery'),
+
+  // ── Gemini AI Brain ──────────────────────────────────────────────────────
+  getGeminiStatus: () => request<{ configured: boolean; masked_key: string | null }>('/api/productivity/gemini/status'),
+  setGeminiKey: (api_key: string) => request<{ success: boolean; configured: boolean }>('/api/productivity/gemini/key', {
+    method: 'POST',
+    body: JSON.stringify({ api_key })
+  }),
+  askJarvis: (prompt: string, context?: any) => request<{ reply: string; command: string | null; configured: boolean }>('/api/productivity/gemini/ask', {
+    method: 'POST',
+    body: JSON.stringify({ prompt, context })
+  }),
+  aiAnalyzeCctv: (event_id?: string) => request<{ success: boolean; summary: string; configured?: boolean }>('/api/camera/cctv/ai-analyze', {
+    method: 'POST',
+    body: JSON.stringify({ event_id })
+  }),
+
+  // ── Emergency Siren ──────────────────────────────────────────────────────
+  getSirenStatus: () => request<{ active: boolean }>('/api/camera/siren/status'),
+  triggerSiren: (action: 'start' | 'stop', duration_sec: number = 30) => request<{ active: boolean; message?: string }>('/api/camera/siren/trigger', {
+    method: 'POST',
+    body: JSON.stringify({ action, duration_sec })
+  })
 };
+
 

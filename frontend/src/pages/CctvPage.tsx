@@ -3,14 +3,16 @@ import {
   Video, ShieldAlert, Volume2, VolumeX, Moon, Sun, Maximize2, Minimize2, Camera,
   RefreshCw, CheckCircle2, AlertTriangle, Cloud, Eye, Radio,
   Bell, BellOff, ArrowDownToLine, Play, X, ExternalLink, Smartphone,
-  Ruler, User, UserCheck, Crosshair, Scan, Mic, MicOff, MessageSquare, Waves, Sparkles
+  Ruler, User, UserCheck, Crosshair, Scan, Mic, MicOff, MessageSquare, Waves, Sparkles,
+  PictureInPicture
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
 import { CctvVideoPlayerModal } from '../components/cctv/CctvVideoPlayerModal';
+import { SirenModal } from '../components/intercom/SirenModal';
 
 export const CctvPage: React.FC = () => {
-  const { isApk, triggerHaptic, registerBackHandler } = useApp();
+  const { isApk, triggerHaptic, registerBackHandler, enterPiP } = useApp();
   const [cctvStatus, setCctvStatus] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
@@ -28,6 +30,7 @@ export const CctvPage: React.FC = () => {
   const [audioPlaying, setAudioPlaying] = useState<boolean>(false);
   const [audioBlocked, setAudioBlocked] = useState<boolean>(false);
   const [sirenEnabled, setSirenEnabled] = useState<boolean>(false);
+  const [showSirenModal, setShowSirenModal] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Mobile Device Vibration state
@@ -613,6 +616,30 @@ export const CctvPage: React.FC = () => {
               <span>APP (.APK)</span>
             </a>
           )}
+
+          <button
+            onClick={() => {
+              triggerHaptic(50);
+              setShowSirenModal(true);
+            }}
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-rose-600/30 hover:bg-rose-600/40 border border-rose-500/60 text-rose-300 font-bold transition-all active:scale-95 shadow-md shadow-rose-950/50 animate-pulse"
+            title="Emergency Siren (100% Volume) & Push-to-Talk Intercom"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+            <span>🚨 SIREN &amp; INTERCOM</span>
+          </button>
+
+          <button
+            onClick={() => {
+              triggerHaptic(30);
+              enterPiP();
+            }}
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 font-bold transition-all active:scale-95"
+            title="Floating Picture-in-Picture Mode"
+          >
+            <PictureInPicture className="w-3.5 h-3.5" />
+            <span>PIP</span>
+          </button>
 
           <button
             onClick={toggleFullScreen}
@@ -1777,6 +1804,12 @@ export const CctvPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Emergency Siren & Intercom Modal */}
+      <SirenModal
+        isOpen={showSirenModal}
+        onClose={() => setShowSirenModal(false)}
+      />
 
       {/* In-App CCTV Video Player Modal */}
       <CctvVideoPlayerModal

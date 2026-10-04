@@ -30,6 +30,7 @@ interface AppContextType {
   triggerHaptic: (durationMs?: number) => void;
   openServerSettings: () => void;
   registerBackHandler: (handler: () => boolean) => () => void;
+  enterPiP: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -90,6 +91,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else {
       setActiveRoute('/settings');
     }
+  };
+
+  const enterPiP = () => {
+    try {
+      if ((window as any).AndroidBridge?.enterPiP) {
+        (window as any).AndroidBridge.enterPiP();
+        return;
+      }
+      // Web Fallback: Try PiP on any video element if available
+      const video = document.querySelector('video') as HTMLVideoElement | null;
+      if (video && document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+        video.requestPictureInPicture().catch(() => {});
+      }
+    } catch {}
   };
 
   const applyThemeToDOM = (t: string) => {
@@ -236,6 +251,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       triggerHaptic,
       openServerSettings,
       registerBackHandler,
+      enterPiP,
     }}>
       {children}
     </AppContext.Provider>

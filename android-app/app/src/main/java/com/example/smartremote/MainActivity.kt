@@ -786,6 +786,45 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {}
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // PICTURE-IN-PICTURE (PiP) MODE FOR CCTV & VIDEO CALLS
+    // ──────────────────────────────────────────────────────────────────────────
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val currentUrl = webView.url ?: ""
+            if (currentUrl.contains("cctv") || currentUrl.contains("call") || currentUrl.contains("mirror")) {
+                enterPictureInPicture()
+            }
+        }
+    }
+
+    fun enterPictureInPicture() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val aspectRatio = android.util.Rational(16, 9)
+                val params = android.app.PictureInPictureParams.Builder()
+                    .setAspectRatio(aspectRatio)
+                    .build()
+                enterPictureInPictureMode(params)
+            } catch (e: Exception) {
+                try {
+                    @Suppress("DEPRECATION")
+                    enterPictureInPictureMode()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            webView.evaluateJavascript("document.body.classList.add('pip-mode');", null)
+        } else {
+            webView.evaluateJavascript("document.body.classList.remove('pip-mode');", null)
+        }
+    }
+
     override fun onDestroy() {
         try {
             networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
@@ -823,6 +862,16 @@ class MainActivity : ComponentActivity() {
         fun setFullscreen(enable: Boolean) { runOnUiThread { applyFullscreen(enable) } }
 
         @JavascriptInterface fun isFullscreen(): Boolean = isFullscreenMode
+
+        @JavascriptInterface
+        fun enterPiP() {
+            runOnUiThread {
+                enterPictureInPicture()
+            }
+        }
+
+        @JavascriptInterface
+        fun supportsPiP(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
 
         @JavascriptInterface
         fun reconnect() {
