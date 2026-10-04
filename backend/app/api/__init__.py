@@ -13,6 +13,7 @@ from app.api.tunnel import router as tunnel_router
 from app.api.camera import router as camera_router
 from app.api.videocall import router as videocall_router
 from app.api.productivity import router as productivity_router
+from app.api.n8n import router as n8n_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(system_router)
@@ -29,4 +30,5 @@ api_router.include_router(tunnel_router)
 api_router.include_router(camera_router)
 api_router.include_router(videocall_router)
 api_router.include_router(productivity_router)
+api_router.include_router(n8n_router)
 

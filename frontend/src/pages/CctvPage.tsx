@@ -65,25 +65,8 @@ export const CctvPage: React.FC = () => {
   // Master Motion Detection toggle
   const [motionEnabled, setMotionEnabled] = useState<boolean>(true);
 
-  // Audio Noise Cancellation toggle (Requirement)
-  const [noiseCancellation, setNoiseCancellation] = useState<boolean>(true);
-
   // Camera Auto-Adjust Lighting toggle (Requirement)
   const [autoLightAdjust, setAutoLightAdjust] = useState<boolean>(true);
-
-  const handleToggleNoiseCancellation = async () => {
-    const nextVal = !noiseCancellation;
-    setNoiseCancellation(nextVal);
-    try {
-      await api.toggleAudioNoiseCancellation(nextVal);
-      if (audioRef.current && (audioPlaying || audioEnabled)) {
-        audioRef.current.src = `/api/camera/laptop/audio?denoise=${nextVal ? 1 : 0}&t=${Date.now()}`;
-        audioRef.current.play().catch(() => {});
-      }
-    } catch {
-      setNoiseCancellation(!nextVal);
-    }
-  };
 
   const handleToggleAutoLight = async () => {
     const nextVal = !autoLightAdjust;
@@ -226,7 +209,7 @@ export const CctvPage: React.FC = () => {
     const audio = audioRef.current;
     if (!audio) return;
     setAudioEnabled(true);
-    const targetUrl = `/api/camera/laptop/audio?denoise=${noiseCancellation ? 1 : 0}&t=${Date.now()}`;
+    const targetUrl = `/api/camera/laptop/audio?t=${Date.now()}`;
     if (!audio.src || audio.paused || audio.ended) {
       audio.src = targetUrl;
     }
@@ -273,7 +256,7 @@ export const CctvPage: React.FC = () => {
       window.removeEventListener('click', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
     };
-  }, [audioEnabled, audioPlaying, noiseCancellation, audioVolume]);
+  }, [audioEnabled, audioPlaying, audioVolume]);
 
   // Screen Stealth state
   const [screenIsOff, setScreenIsOff] = useState<boolean>(true);
@@ -414,9 +397,6 @@ export const CctvPage: React.FC = () => {
         setScreenIsOff(Boolean(statusRes.screen_is_off));
         setKeepScreenOff(statusRes.keep_laptop_screen_off !== false);
         setMotionEnabled(statusRes.motion_detection_enabled !== false);
-        if (statusRes.audio_noise_cancellation !== undefined) {
-          setNoiseCancellation(Boolean(statusRes.audio_noise_cancellation));
-        }
         if (statusRes.auto_light_adjust !== undefined) {
           setAutoLightAdjust(Boolean(statusRes.auto_light_adjust));
         }
@@ -519,7 +499,7 @@ export const CctvPage: React.FC = () => {
   };
 
   const streamUrl = `/api/camera/laptop/stream?quality=80&fps=30&t=${nightMode ? 'n1' : 'n0'}&al=${autoLightAdjust ? 1 : 0}`;
-  const audioStreamUrl = `/api/camera/laptop/audio?denoise=${noiseCancellation ? 1 : 0}`;
+  const audioStreamUrl = `/api/camera/laptop/audio`;
 
   return (
     <div className="flex-1 w-full max-w-6xl mx-auto p-3 sm:p-5 space-y-4 pb-24 safe-bottom">
@@ -837,20 +817,6 @@ export const CctvPage: React.FC = () => {
                 <span>{motionEnabled ? 'MOTION ON' : 'MOTION OFF'}</span>
               </button>
 
-              {/* Noise Cancellation ON/OFF toggle */}
-              <button
-                onClick={handleToggleNoiseCancellation}
-                className={`px-2.5 py-1 rounded border text-[10px] font-bold flex items-center space-x-1 transition-all ${
-                  noiseCancellation
-                    ? 'bg-emerald-500/30 border-emerald-400 text-emerald-300'
-                    : 'bg-black/60 border-slate-700 text-slate-500 hover:text-slate-300'
-                }`}
-                title="Toggle Active Noise Cancellation on Laptop Microphone (eliminates fan hum & hiss)"
-              >
-                <Waves className="w-3 h-3" />
-                <span>{noiseCancellation ? 'NOISE CANCEL ON' : 'NOISE CANCEL OFF'}</span>
-              </button>
-
               {/* Auto Adjust Light ON/OFF toggle */}
               <button
                 onClick={handleToggleAutoLight}
@@ -953,18 +919,6 @@ export const CctvPage: React.FC = () => {
               <span className="text-cyan-300 text-[11px] min-w-[3rem] text-right">
                 {Math.round(audioVolume * 100)}%
               </span>
-              <button
-                onClick={handleToggleNoiseCancellation}
-                className={`px-2 py-1 rounded text-[10px] font-bold border transition-all whitespace-nowrap flex items-center space-x-1 ${
-                  noiseCancellation
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-slate-900 border-slate-700 text-slate-400'
-                }`}
-                title="Toggle Active Noise Cancellation"
-              >
-                <Waves className="w-3 h-3" />
-                <span>{noiseCancellation ? 'NOISE CANCEL ON' : 'RAW MIC'}</span>
-              </button>
               {!audioPlaying && (
                 <button
                   onClick={startAudioPlayback}
@@ -985,43 +939,15 @@ export const CctvPage: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <Sparkles className="w-4 h-4 text-amber-400" />
                 <span className="text-xs font-bold font-mono uppercase tracking-wide text-slate-200">
-                  Audio &amp; Light Intelligence
+                  Visual &amp; Light Intelligence
                 </span>
               </div>
               <span className="text-[10px] font-mono text-cyan-400 font-bold px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30">
-                ACTIVE AI/DSP
+                ACTIVE AI
               </span>
             </div>
 
-            {/* Feature 1: Microphone Noise Cancellation */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Waves className={`w-4 h-4 ${noiseCancellation ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
-                  <div>
-                    <span className="text-xs font-bold font-mono text-slate-200 block">Microphone Noise Cancellation</span>
-                    <span className="text-[9px] text-slate-400 font-mono">
-                      {noiseCancellation ? 'Adaptive FFT filter + Fan/AC hum suppression' : 'Raw microphone input (noisy)'}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={handleToggleNoiseCancellation}
-                  className={`px-3 py-1 rounded-full font-mono text-[10px] font-bold border transition-all ${
-                    noiseCancellation
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/30'
-                      : 'bg-slate-900 text-slate-500 border-slate-700 hover:text-slate-300'
-                  }`}
-                >
-                  {noiseCancellation ? '● ON' : '○ OFF'}
-                </button>
-              </div>
-              <p className="text-[10px] text-slate-400 font-mono leading-relaxed">
-                Strips laptop cooling fan hiss, room AC rumble, and electrical noise. Automatically optimizes Realtek ALC256 pre-amp analog gain to eliminate white noise.
-              </p>
-            </div>
-
-            {/* Feature 2: Camera Auto-Adjust Lighting & Dynamic Exposure */}
+            {/* Feature: Camera Auto-Adjust Lighting & Dynamic Exposure */}
             <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">

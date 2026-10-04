@@ -44,6 +44,13 @@ def open_laptop_call_interface(session_id: str, server_base: str = "http://local
         # Dedicated direct video call URL with auto_join and laptop role
         call_url = f"{server_base}/call-laptop?session_id={session_id}&role=laptop&auto_join=true"
 
+        # Temporarily release webcam hardware lock so Chromium can access /dev/video0 directly
+        try:
+            from app.camera.camera_manager import camera_manager
+            camera_manager.pause_for_call()
+        except Exception as e:
+            print(f"[LAPTOP-CALL] Camera pause notice: {e}")
+
         chromium_bin = shutil.which("chromium") or shutil.which("google-chrome") or shutil.which("chromium-browser")
         if chromium_bin:
             cmd = [
@@ -51,6 +58,7 @@ def open_laptop_call_interface(session_id: str, server_base: str = "http://local
                 f"--app={call_url}",
                 "--use-fake-ui-for-media-stream",       # Auto-approves webcam & microphone without prompt
                 "--autoplay-policy=no-user-gesture-required", # Allows audio/video autoplay
+                "--user-data-dir=/tmp/smart_remote_call_profile",
                 "--no-first-run",
                 "--disable-infobars",
                 "--disable-session-crashed-bubble",
@@ -91,6 +99,13 @@ def close_laptop_call_interface():
                     pass
             finally:
                 _active_laptop_call_proc = None
+
+        # Resume CCTV webcam capture
+        try:
+            from app.camera.camera_manager import camera_manager
+            camera_manager.resume_from_call()
+        except Exception as e:
+            print(f"[LAPTOP-CALL] Camera resume notice: {e}")
 
 def handle_incoming_call_on_laptop(session_id: str, server_base: str = "http://localhost:7070"):
     """Directly opens video call interface on Kali Linux screen and alerts via speakers — ZERO notifications/requests to click."""

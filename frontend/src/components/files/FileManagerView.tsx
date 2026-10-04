@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   Folder, FileText, Image as ImageIcon, ArrowLeft, Home,
   Upload, Plus, Trash2, Edit3, Download, Search, RefreshCw, X, Check,
-  CheckSquare, Square, Archive, FileCheck, Layers
+  CheckSquare, Square, Archive, FileCheck, Layers, Smartphone, HardDrive, ShieldCheck
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { FileItem, FileListResponse, FileReadResponse } from '../../types';
@@ -33,6 +33,8 @@ export const FileManagerView: React.FC = () => {
   const [showNewModal, setShowNewModal] = useState<boolean>(false);
   const [newItemName, setNewItemName] = useState<string>('');
   const [isFolderType, setIsFolderType] = useState<boolean>(false);
+  const [createTargetLocation, setCreateTargetLocation] = useState<'kali' | 'mobile'>('kali');
+  const [newFileContent, setNewFileContent] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<FileItem | null>(null);
   const [renameTarget, setRenameTarget] = useState<FileItem | null>(null);
   const [newName, setNewName] = useState<string>('');
@@ -146,12 +148,100 @@ export const FileManagerView: React.FC = () => {
     }
   };
 
+  const handleDownloadToMobile = (e: React.MouseEvent | null, path: string, name: string) => {
+    if (e) e.stopPropagation();
+    try {
+      const bridge = (window as any).AndroidBridge;
+      if (bridge && typeof bridge.downloadFile === 'function') {
+        const fullDownloadUrl = `/api/files/download?path=${encodeURIComponent(path)}`;
+        bridge.downloadFile(fullDownloadUrl, name, 'application/octet-stream');
+        addNotification('Downloading to Mobile', `Saving "${name}" to your mobile /Download folder`, 'success');
+        return;
+      }
+      
+      const a = document.createElement('a');
+      a.href = `/api/files/download?path=${encodeURIComponent(path)}`;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      addNotification('Downloading File', `Downloading "${name}" to device...`, 'info');
+    } catch (err: any) {
+      addNotification('Download Failed', err.message || 'Error downloading file', 'error');
+    }
+  };
+
+  const handleSaveCurrentToMobile = () => {
+    if (!previewFile) return;
+    const bridge = (window as any).AndroidBridge;
+    if (previewFile.is_text) {
+      if (bridge && typeof bridge.saveTextFileToLocal === 'function') {
+        const ok = bridge.saveTextFileToLocal(previewFile.name, editingContent);
+        if (ok) {
+          addNotification('Saved to Mobile Storage', `Created new file "${previewFile.name}" on mobile /Download`, 'success');
+          return;
+        }
+      }
+      const blob = new Blob([editingContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = previewFile.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      addNotification('Saved', `Created new file "${previewFile.name}" on local storage`, 'success');
+    } else {
+      handleDownloadToMobile(null, previewFile.path, previewFile.name);
+    }
+  };
+
+  const handleRequestStoragePermission = () => {
+    const bridge = (window as any).AndroidBridge;
+    if (bridge && typeof bridge.requestStoragePermission === 'function') {
+      bridge.requestStoragePermission();
+      addNotification('Storage Permission', 'Prompting system permission dialog... Please tap Allow.', 'info');
+    } else {
+      addNotification('Storage Ready', 'Local file downloads are supported in this browser.', 'info');
+    }
+  };
+
   const handleCreate = async () => {
     if (!newItemName.trim()) return;
-    const fullPath = `${currentPath}/${newItemName.trim()}`;
+    const fileName = newItemName.trim();
+    if (createTargetLocation === 'mobile') {
+      const bridge = (window as any).AndroidBridge;
+      if (bridge && typeof bridge.saveTextFileToLocal === 'function') {
+        const ok = bridge.saveTextFileToLocal(fileName, newFileContent || '');
+        if (ok) {
+          addNotification('Mobile File Created', `Created file "${fileName}" in mobile local storage (/Download)`, 'success');
+          setShowNewModal(false);
+          setNewItemName('');
+          setNewFileContent('');
+          return;
+        }
+      }
+      const blob = new Blob([newFileContent || ''], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      addNotification('File Saved', `Created "${fileName}" on local storage`, 'success');
+      setShowNewModal(false);
+      setNewItemName('');
+      setNewFileContent('');
+      return;
+    }
+
+    const fullPath = `${currentPath}/${fileName}`;
     try {
       await api.createItem(fullPath, isFolderType);
-      addNotification('File Created', `Created ${isFolderType ? 'folder' : 'file'}: ${newItemName}`, 'success');
+      addNotification('File Created', `Created ${isFolderType ? 'folder' : 'file'}: ${fileName}`, 'success');
       setShowNewModal(false);
       setNewItemName('');
       loadDirectory(currentPath);
@@ -273,13 +363,23 @@ export const FileManagerView: React.FC = () => {
             {/* New Item */}
             <button
               onClick={() => {
-                setIsFolderType(true);
+                setIsFolderType(false);
                 setShowNewModal(true);
               }}
               className="p-1.5 px-2.5 rounded-lg bg-cyan-600/30 border border-cyan-500/50 text-cyan-300 hover:bg-cyan-600/50 flex items-center space-x-1 text-xs font-semibold active:scale-95"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New</span>
+            </button>
+
+            {/* Storage Permission / Info button */}
+            <button
+              onClick={handleRequestStoragePermission}
+              className="p-1.5 px-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 flex items-center space-x-1 text-xs active:scale-95"
+              title="Storage Permission & Downloads Folder"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Storage</span>
             </button>
           </div>
         </div>
@@ -391,14 +491,13 @@ export const FileManagerView: React.FC = () => {
                   {!selectionMode && (
                     <div className="flex items-center space-x-1 opacity-80 group-hover:opacity-100" onClick={e => e.stopPropagation()}>
                       {!item.is_dir && (
-                        <a
-                          href={`/api/files/download?path=${encodeURIComponent(item.path)}`}
-                          download
+                        <button
+                          onClick={(e) => handleDownloadToMobile(e, item.path, item.name)}
                           className="p-1 text-slate-400 hover:text-cyan-300"
-                          title="Download"
+                          title="Download to Mobile Storage (/Download)"
                         >
                           <Download className="w-3.5 h-3.5" />
-                        </a>
+                        </button>
                       )}
                       <button
                         onClick={() => {
@@ -502,6 +601,14 @@ export const FileManagerView: React.FC = () => {
                 <span className="truncate">{previewFile.name}</span>
               </div>
               <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleSaveCurrentToMobile}
+                  className="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 hover:bg-emerald-500/30 text-emerald-300 font-semibold rounded-lg text-xs flex items-center space-x-1"
+                  title="Download / Save to Mobile Local Storage (/Download)"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Save to Mobile</span>
+                </button>
                 {previewFile.is_text && (
                   <button
                     onClick={handleSaveTextFile}
@@ -549,41 +656,89 @@ export const FileManagerView: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-cyber-surface border border-slate-800 rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
             <h3 className="font-semibold text-sm text-slate-100">Create New Item</h3>
+
+            {/* Destination Selection: Kali Linux or Mobile Local Storage */}
             <div className="flex space-x-2">
               <button
-                onClick={() => setIsFolderType(false)}
-                className={`flex-1 py-1.5 rounded-lg border text-xs font-mono ${
-                  !isFolderType ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'
+                onClick={() => setCreateTargetLocation('kali')}
+                className={`flex-1 py-1.5 rounded-lg border text-xs font-mono flex items-center justify-center space-x-1.5 ${
+                  createTargetLocation === 'kali' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'
                 }`}
               >
-                File
+                <HardDrive className="w-3.5 h-3.5" />
+                <span>Kali Laptop</span>
               </button>
               <button
-                onClick={() => setIsFolderType(true)}
-                className={`flex-1 py-1.5 rounded-lg border text-xs font-mono ${
-                  isFolderType ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'
+                onClick={() => {
+                  setCreateTargetLocation('mobile');
+                  setIsFolderType(false);
+                }}
+                className={`flex-1 py-1.5 rounded-lg border text-xs font-mono flex items-center justify-center space-x-1.5 ${
+                  createTargetLocation === 'mobile' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-slate-900 border-slate-800 text-slate-400'
                 }`}
               >
-                Folder
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>Mobile Storage</span>
               </button>
             </div>
+
+            {createTargetLocation === 'kali' ? (
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setIsFolderType(false)}
+                  className={`flex-1 py-1.5 rounded-lg border text-xs font-mono ${
+                    !isFolderType ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  File
+                </button>
+                <button
+                  onClick={() => setIsFolderType(true)}
+                  className={`flex-1 py-1.5 rounded-lg border text-xs font-mono ${
+                    isFolderType ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  Folder
+                </button>
+              </div>
+            ) : (
+              <div className="text-[11px] text-emerald-400/90 font-mono bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
+                Will be created and saved directly to your phone's <b>/Download</b> local storage.
+              </div>
+            )}
+
             <input
               type="text"
               value={newItemName}
               onChange={e => setNewItemName(e.target.value)}
-              placeholder="Name..."
+              placeholder={createTargetLocation === 'mobile' ? "filename.txt..." : "Name..."}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
               autoFocus
             />
+
+            {createTargetLocation === 'mobile' && (
+              <textarea
+                value={newFileContent}
+                onChange={e => setNewFileContent(e.target.value)}
+                placeholder="Initial file contents (optional)..."
+                rows={3}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 resize-none font-mono"
+              />
+            )}
+
             <div className="flex space-x-2">
               <button
                 onClick={handleCreate}
                 className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-semibold rounded-xl text-xs"
               >
-                Create
+                {createTargetLocation === 'mobile' ? 'Save to Mobile Storage' : 'Create'}
               </button>
               <button
-                onClick={() => setShowNewModal(false)}
+                onClick={() => {
+                  setShowNewModal(false);
+                  setNewItemName('');
+                  setNewFileContent('');
+                }}
                 className="flex-1 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs"
               >
                 Cancel

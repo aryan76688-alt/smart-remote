@@ -27,6 +27,32 @@ class CallManager:
             "device_id": device_id
         }
         print(f"[CALL-WS] Client connected: {role} ({device_id}), total clients: {len(self.active_connections)}")
+
+        # If a call is currently ringing/active and this client matches the target role, replay call invite & offer
+        if self.current_call and self.current_call.get("status") in ("ringing", "connected"):
+            if self.current_call.get("target_role") == role:
+                print(f"[CALL-WS] Replaying active call invitation to newly joined {role}")
+                try:
+                    await ws.send_text(json.dumps({
+                        "type": "incoming_call",
+                        "session_id": self.current_call["session_id"],
+                        "caller_role": self.current_call["caller_role"],
+                        "timestamp": self.current_call.get("started_at", datetime.utcnow().isoformat())
+                    }))
+                    # If offer already generated, deliver it
+                    if "last_offer" in self.current_call:
+                        await ws.send_text(json.dumps(self.current_call["last_offer"]))
+                except Exception as e:
+                    print(f"[CALL-WS] Error notifying new client: {e}")
+
+            # Notify the other peer that target has joined and is ready for WebRTC handshake!
+            peer_role = "mobile" if role == "laptop" else "laptop"
+            await self.broadcast_to_role(peer_role, {
+                "type": "peer_joined",
+                "role": role,
+                "session_id": self.current_call["session_id"]
+            }, sender_conn_id=conn_id)
+
         return conn_id
 
     def disconnect(self, conn_id: str):
@@ -94,6 +120,13 @@ class CallManager:
                 "timestamp": datetime.utcnow().isoformat()
             }, sender_conn_id=conn_id)
 
+            # Pause CCTV recording & release /dev/video0 and microphone for WebRTC
+            try:
+                from app.camera.camera_manager import camera_manager
+                camera_manager.pause_for_call()
+            except Exception as e:
+                print(f"[CALL] Camera pause notice: {e}")
+
             if target_role == "laptop":
                 try:
                     from app.services.laptop_call_client import handle_incoming_call_on_laptop
@@ -102,6 +135,13 @@ class CallManager:
                     print(f"[CALL] Laptop ring alert notice: {e}")
 
         elif msg_type == "call_accept":
+            # Ensure webcam is released
+            try:
+                from app.camera.camera_manager import camera_manager
+                camera_manager.pause_for_call()
+            except Exception as e:
+                print(f"[CALL] Camera pause notice: {e}")
+
             if self.current_call:
                 self.current_call["status"] = "connected"
                 session_id = data.get("session_id") or self.current_call["session_id"]
@@ -149,6 +189,12 @@ class CallManager:
                 }, sender_conn_id=conn_id)
                 self.current_call = None
 
+                try:
+                    from app.camera.camera_manager import camera_manager
+                    camera_manager.resume_from_call()
+                except Exception:
+                    pass
+
         elif msg_type == "call_end":
             if self.current_call:
                 session_id = data.get("session_id") or self.current_call["session_id"]
@@ -180,7 +226,19 @@ class CallManager:
                 except Exception:
                     pass
 
-        elif msg_type in ("webrtc_offer", "webrtc_answer", "ice_candidate"):
+                try:
+                    from app.camera.camera_manager import camera_manager
+                    camera_manager.resume_from_call()
+                except Exception:
+                    pass
+
+        elif msg_type == "webrtc_offer":
+            if self.current_call:
+                self.current_call["last_offer"] = data
+            target_role = "laptop" if caller_role == "mobile" else "mobile"
+            await self.broadcast_to_role(target_role, data, sender_conn_id=conn_id)
+
+        elif msg_type in ("webrtc_answer", "ice_candidate"):
             # Relay WebRTC signaling payload directly to peer
             target_role = "laptop" if caller_role == "mobile" else "mobile"
             await self.broadcast_to_role(target_role, data, sender_conn_id=conn_id)
@@ -206,7 +264,18 @@ async def call_websocket_endpoint(websocket: WebSocket):
 @router.post("/direct_start")
 async def direct_start_call(request: Request):
     """Directly triggers the full video call interface to open immediately on the Kali Linux laptop display with camera and mic."""
-    session_id = str(uuid.uuid4())[:8]
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    session_id = body.get("session_id") or str(uuid.uuid4())[:8]
+
+    # Explicitly pause CCTV recording and release camera/mic hardware
+    try:
+        from app.camera.camera_manager import camera_manager
+        camera_manager.pause_for_call()
+    except Exception as e:
+        print(f"[CALL] Camera pause notice: {e}")
     try:
         from app.services.laptop_call_client import handle_incoming_call_on_laptop
         handle_incoming_call_on_laptop(session_id, "http://localhost:7070")

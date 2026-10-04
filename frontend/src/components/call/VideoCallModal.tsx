@@ -4,6 +4,7 @@ import {
   SwitchCamera, Laptop, Smartphone, Volume2, Shield
 } from 'lucide-react';
 import { useCall } from '../../context/CallContext';
+import { useApp } from '../../context/AppContext';
 
 export const VideoCallModal: React.FC = () => {
   const {
@@ -37,7 +38,9 @@ export const VideoCallModal: React.FC = () => {
     }
   }, [remoteStream, callState]);
 
-  if (callState === 'idle') return null;
+  const { activeRoute } = useApp();
+
+  if (callState === 'idle' || activeRoute === '/call') return null;
 
   const formatDuration = (sec: number) => {
     const m = Math.floor(sec / 60);

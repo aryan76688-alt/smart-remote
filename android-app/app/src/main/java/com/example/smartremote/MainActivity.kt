@@ -3,24 +3,31 @@ package com.example.smartremote
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.app.DownloadManager
+import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
+import android.media.MediaScannerConnection
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.MediaStore
 import android.text.format.Formatter
 import android.view.Gravity
 import android.view.View
@@ -37,6 +44,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CopyOnWriteArrayList
@@ -105,9 +114,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, data)
+            fileChooserCallback?.onReceiveValue(uris)
+        } else {
+            fileChooserCallback?.onReceiveValue(null)
+        }
+        fileChooserCallback = null
+    }
+
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> }
+    ) { results ->
+        val grantedStorage = results[Manifest.permission.WRITE_EXTERNAL_STORAGE] == true ||
+            results[Manifest.permission.READ_EXTERNAL_STORAGE] == true ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && (
+                results[Manifest.permission.READ_MEDIA_IMAGES] == true ||
+                results[Manifest.permission.POST_NOTIFICATIONS] == true
+            ))
+        if (grantedStorage) {
+            Toast.makeText(this, "Storage permission granted! Files can now be saved to your mobile storage.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -154,6 +187,7 @@ class MainActivity : ComponentActivity() {
 
         setupWebViewSettings()
         setupWebViewClients()
+        setupDownloadListener()
         webView.addJavascriptInterface(AndroidAppBridge(this), "AndroidBridge")
 
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -213,39 +247,11 @@ class MainActivity : ComponentActivity() {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // NETWORK FAILOVER LISTENER
+    // NETWORK FAILOVER LISTENER (Disabled background auto-switching per user requirement)
     // ──────────────────────────────────────────────────────────────────────────
     private fun setupNetworkAutoFailover() {
-        try {
-            connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            val request = NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build()
-
-            networkCallback = object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    // Network transitioned or reconnected
-                    if (errorLayout.visibility == View.VISIBLE) {
-                        mainHandler.post {
-                            showLoadingOverlay("Network connected!\nSwitching to best server...")
-                            discoverAndLoadBestServer(force = true)
-                        }
-                    }
-                }
-
-                override fun onLost(network: Network) {
-                    // Lost active network (e.g. Wi-Fi disconnected while walking outside)
-                    mainHandler.postDelayed({
-                        if (!isFinishing) {
-                            showLoadingOverlay("Network changed...\nAuto-switching to best server...")
-                            discoverAndLoadBestServer(force = true)
-                        }
-                    }, 800)
-                }
-            }
-
-            connectivityManager?.registerNetworkCallback(request, networkCallback!!)
-        } catch (_: Exception) {}
+        // Disabled background auto-switching to prevent disruptive server jumps while app is in use.
+        // Server is selected once at startup and remains stable.
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -637,12 +643,23 @@ class MainActivity : ComponentActivity() {
     // ──────────────────────────────────────────────────────────────────────────
     // PERMISSIONS
     // ──────────────────────────────────────────────────────────────────────────
-    private fun checkAndRequestPermissions() {
-        val permissions = arrayOf(
+    fun checkAndRequestPermissions() {
+        val permissions = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.MODIFY_AUDIO_SETTINGS,
             Manifest.permission.CAMERA
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
+            permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
+            permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
+        } else {
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }
         val needed = permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) requestPermissionsLauncher.launch(needed.toTypedArray())
     }
@@ -672,6 +689,27 @@ class MainActivity : ComponentActivity() {
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 runOnUiThread { request?.grant(request.resources) }
+            }
+
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                fileChooserCallback?.onReceiveValue(null)
+                fileChooserCallback = filePathCallback
+                try {
+                    val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                        type = "*/*"
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                    }
+                    fileChooserLauncher.launch(intent)
+                    return true
+                } catch (e: Exception) {
+                    fileChooserCallback?.onReceiveValue(null)
+                    fileChooserCallback = null
+                    return false
+                }
             }
 
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -722,15 +760,152 @@ class MainActivity : ComponentActivity() {
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     hideLoadingOverlay()
-                    // Automatic failover when current server errors out
-                    mainHandler.postDelayed({
-                        if (!isFinishing) {
-                            showLoadingOverlay("Connection lost...\nSwitching to best alternative server...")
-                            discoverAndLoadBestServer(force = true)
-                        }
-                    }, 500)
+                    showConnectionError(
+                        "Unable to load Smart Remote from server:\n$activeServerUrl\n\n" +
+                        "Tap RETRY to reload or tap AUTO-DETECT to scan available servers."
+                    )
                 }
             }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // DOWNLOAD & MOBILE STORAGE MANAGEMENT
+    // ──────────────────────────────────────────────────────────────────────────
+    private fun setupDownloadListener() {
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+            handleFileDownload(url, userAgent, contentDisposition, mimetype)
+        }
+    }
+
+    fun handleFileDownload(
+        rawUrl: String,
+        userAgent: String?,
+        contentDisposition: String?,
+        mimetype: String?,
+        customFileName: String? = null
+    ) {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionsLauncher.launch(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE))
+                Toast.makeText(this, "Storage permission requested. Please allow to download files.", Toast.LENGTH_LONG).show()
+                return
+            }
+        }
+
+        try {
+            if (rawUrl.startsWith("data:")) {
+                val commaIndex = rawUrl.indexOf(",")
+                if (commaIndex != -1) {
+                    val base64Data = rawUrl.substring(commaIndex + 1)
+                    val resolvedName = customFileName ?: ("download_" + System.currentTimeMillis() + ".bin")
+                    val bytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                    saveBytesToLocalStorage(resolvedName, bytes, mimetype ?: "application/octet-stream")
+                    return
+                }
+            }
+
+            if (rawUrl.startsWith("blob:")) {
+                val script = """
+                    (async function() {
+                        try {
+                            const res = await fetch('$rawUrl');
+                            const blob = await res.blob();
+                            const reader = new FileReader();
+                            reader.onloadend = function() {
+                                if (window.AndroidBridge && window.AndroidBridge.saveBase64File) {
+                                    window.AndroidBridge.saveBase64File('${customFileName ?: "download_" + System.currentTimeMillis()}', reader.result, blob.type || 'application/octet-stream');
+                                }
+                            };
+                            reader.readAsDataURL(blob);
+                        } catch (e) {
+                            console.error('Blob download failed', e);
+                        }
+                    })();
+                """.trimIndent()
+                runOnUiThread {
+                    webView.evaluateJavascript(script, null)
+                }
+                return
+            }
+
+            val absoluteUrl = when {
+                rawUrl.startsWith("http://") || rawUrl.startsWith("https://") -> rawUrl
+                rawUrl.startsWith("/") -> activeServerUrl.trimEnd('/') + rawUrl
+                else -> activeServerUrl.trimEnd('/') + "/" + rawUrl
+            }
+
+            val guessedName = if (!customFileName.isNullOrBlank()) {
+                customFileName
+            } else {
+                URLUtil.guessFileName(absoluteUrl, contentDisposition, mimetype)
+            }
+
+            val request = DownloadManager.Request(Uri.parse(absoluteUrl)).apply {
+                if (!mimetype.isNullOrBlank() && mimetype != "application/octet-stream") {
+                    setMimeType(mimetype)
+                }
+                val cookies = CookieManager.getInstance().getCookie(absoluteUrl)
+                if (!cookies.isNullOrEmpty()) {
+                    addRequestHeader("Cookie", cookies)
+                }
+                if (!userAgent.isNullOrEmpty()) {
+                    addRequestHeader("User-Agent", userAgent)
+                }
+                setDescription("Downloading to mobile local storage...")
+                setTitle(guessedName)
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, guessedName)
+                setAllowedOverMetered(true)
+                setAllowedOverRoaming(true)
+            }
+
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            dm.enqueue(request)
+            Toast.makeText(this, "Downloading $guessedName to /Download on mobile...", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Download error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun saveBytesToLocalStorage(filename: String, bytes: ByteArray, mimeType: String): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val resolver = contentResolver
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, if (mimeType.isNotBlank()) mimeType else "application/octet-stream")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                    ?: return false
+                resolver.openOutputStream(uri)?.use { os ->
+                    os.write(bytes)
+                    os.flush()
+                }
+                contentValues.clear()
+                contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, contentValues, null, null)
+            } else {
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!dir.exists()) dir.mkdirs()
+                val targetFile = File(dir, filename)
+                FileOutputStream(targetFile).use { fos ->
+                    fos.write(bytes)
+                    fos.flush()
+                }
+                MediaScannerConnection.scanFile(this, arrayOf(targetFile.absolutePath), arrayOf(mimeType), null)
+            }
+            runOnUiThread {
+                Toast.makeText(this, "Created new file in mobile storage: /Download/$filename", Toast.LENGTH_LONG).show()
+            }
+            true
+        } catch (e: Exception) {
+            runOnUiThread {
+                Toast.makeText(this, "Error creating file on storage: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            false
         }
     }
 
@@ -893,6 +1068,63 @@ class MainActivity : ComponentActivity() {
                     }
                 } catch (_: Exception) {}
             }
+        }
+
+        @JavascriptInterface
+        fun downloadFile(url: String, filename: String, mimeType: String) {
+            runOnUiThread {
+                handleFileDownload(url, webView.settings.userAgentString, null, mimeType, filename)
+            }
+        }
+
+        @JavascriptInterface
+        fun saveBase64File(filename: String, base64Data: String, mimeType: String): Boolean {
+            return try {
+                val cleanBase64 = if (base64Data.contains(",")) {
+                    base64Data.substringAfter(",")
+                } else {
+                    base64Data
+                }
+                val bytes = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT)
+                saveBytesToLocalStorage(filename, bytes, mimeType)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(context, "Failed to save file: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun saveTextFileToLocal(filename: String, content: String): Boolean {
+            return try {
+                val bytes = content.toByteArray(Charsets.UTF_8)
+                saveBytesToLocalStorage(filename, bytes, "text/plain")
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun requestStoragePermission() {
+            runOnUiThread {
+                checkAndRequestPermissions()
+            }
+        }
+
+        @JavascriptInterface
+        fun hasStoragePermission(): Boolean {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+            } else {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+
+        @JavascriptInterface
+        fun getStorageDirectory(): String {
+            return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
         }
     }
 }

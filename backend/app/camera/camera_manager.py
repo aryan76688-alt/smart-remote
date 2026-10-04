@@ -469,6 +469,12 @@ class CameraManager:
         except Exception:
             pass
 
+        try:
+            from app.services.n8n_service import n8n_service
+            n8n_service.dispatch_event(event_type, details)
+        except Exception:
+            pass
+
     def get_events(self) -> List[Dict[str, Any]]:
         return self.cctv_events
 
@@ -480,6 +486,11 @@ class CameraManager:
         if not CV2_AVAILABLE:
             return False
         with self.laptop_lock:
+            # If paused for an active two-way video call, don't grab /dev/video0
+            if getattr(self, "paused_for_call", False):
+                print("[CAMERA] Blocked start_laptop_camera: active video call has exclusive webcam access.")
+                return False
+
             if self.laptop_cap is None or not self.laptop_cap.isOpened():
                 for dev_id in [0, 1, 2]:
                     cap = cv2.VideoCapture(dev_id, cv2.CAP_V4L2)
@@ -531,6 +542,68 @@ class CameraManager:
                 self._capture_running = False
                 self.laptop_cap.release()
                 self.laptop_cap = None
+
+    def pause_for_call(self):
+        """Temporarily pauses CCTV recording and completely releases webcam device /dev/video0 and microphone
+        so that Chromium on Kali Linux can use them with full hardware access during two-way video calls."""
+        with self.laptop_lock:
+            if getattr(self, "paused_for_call", False):
+                return
+            print("[CAMERA] ⏸️ PAUSING CCTV RECORDING & RELEASING /dev/video0 FOR VIDEO CALL...")
+            self.paused_for_call = True
+            self._was_cctv_recording_before_call = self.cctv_recording
+
+            # 1. Stop CCTV worker and audio companion process
+            if self.cctv_recording:
+                self.cctv_recording = False
+                self.cctv_stop_event.set()
+
+            if self._current_audio_proc is not None:
+                try:
+                    self._current_audio_proc.terminate()
+                    self._current_audio_proc.wait(timeout=1.5)
+                except Exception:
+                    try:
+                        self._current_audio_proc.kill()
+                    except Exception:
+                        pass
+                self._current_audio_proc = None
+
+            if self.cctv_writer is not None:
+                try:
+                    self.cctv_writer.release()
+                except Exception:
+                    pass
+                self.cctv_writer = None
+
+            # 2. Stop capture worker thread
+            self._capture_running = False
+
+            # 3. Completely release OpenCV VideoCapture hardware handle on /dev/video0
+            if self.laptop_cap is not None:
+                try:
+                    self.laptop_cap.release()
+                except Exception as e:
+                    print(f"[CAMERA] Error releasing laptop_cap: {e}")
+                self.laptop_cap = None
+
+            try:
+                import gc
+                gc.collect()
+            except Exception:
+                pass
+            print("[CAMERA] ✓ Camera hardware /dev/video0 is 100% UNLOCKED and free for Chromium video call!")
+
+    def resume_from_call(self):
+        """Re-opens the webcam device and resumes CCTV recording after a video call finishes."""
+        with self.laptop_lock:
+            if not getattr(self, "paused_for_call", False):
+                return
+            print("[CAMERA] ▶️ RESUMING CCTV RECORDING AFTER VIDEO CALL...")
+            self.paused_for_call = False
+            self.start_laptop_camera()
+            if getattr(self, "_was_cctv_recording_before_call", True):
+                self.start_cctv(chunk_duration_sec=self.cctv_chunk_duration, auto_upload_gdrive=self.cctv_auto_upload_gdrive)
 
     def _capture_worker(self):
         """Dedicated single hardware capture thread.
@@ -1022,9 +1095,7 @@ class CameraManager:
 
     def audio_stream_generator(self, denoise: Optional[bool] = None) -> Generator[bytes, None, None]:
         """Real-time live audio stream from Kali Linux laptop microphone.
-        Automatically shares the hardware mic device using dsnoop so it works
-        even while CCTV recording is active. Retries on stream failure."""
-        active_denoise = self.audio_noise_cancellation if denoise is None else bool(denoise)
+        Direct, uncompressed, crystal clear microphone capture with zero noise suppression delay."""
         self._ensure_microphone_configured()
 
         # Build device candidates: shared_mic first (allows concurrent streaming + recording), then default, dsnoop0, plughw
@@ -1036,7 +1107,7 @@ class CameraManager:
             ("-f", "pulse", "default"),
         ]
 
-        def build_cmd(fmt_flag, fmt, device, use_denoise):
+        def build_cmd(fmt_flag, fmt, device):
             cmd = [
                 "ffmpeg",
                 "-nostdin",
@@ -1045,19 +1116,11 @@ class CameraManager:
                 "-i", device,
                 "-ac", "1",
                 "-ar", "48000",
-            ]
-            if use_denoise:
-                cmd.extend([
-                    "-af",
-                    "highpass=f=75,lowpass=f=8000,afftdn=nr=10:nf=-52:tn=1,volume=3.5,alimiter=limit=0.96"
-                ])
-            else:
-                cmd.extend(["-af", "highpass=f=60,volume=3.5,alimiter=limit=0.96"])
-            cmd.extend([
+                "-af", "volume=2.5",
                 "-c:a", "libopus",
-                "-b:a", "32k",
+                "-b:a", "64k",
                 "-vbr", "on",
-                "-compression_level", "10",
+                "-compression_level", "5",
                 "-frame_duration", "20",
                 "-application", "voip",
                 "-flush_packets", "1",
@@ -1065,7 +1128,7 @@ class CameraManager:
                 "-flags", "low_delay",
                 "-f", "webm",
                 "pipe:1"
-            ])
+            ]
             return cmd
 
         # Try each device in order, yield audio chunks, retry on failure
@@ -1074,7 +1137,7 @@ class CameraManager:
         while retry_count < max_retries:
             started = False
             for (fmt_flag, fmt, device) in device_candidates:
-                cmd = build_cmd(fmt_flag, fmt, device, active_denoise)
+                cmd = build_cmd(fmt_flag, fmt, device)
                 proc = None
                 try:
                     proc = subprocess.Popen(
@@ -1145,6 +1208,10 @@ class CameraManager:
         """Start rolling 24/7 CCTV recording in high quality (default 30 minutes)."""
         if not CV2_AVAILABLE:
             return {"success": False, "error": "OpenCV is not available"}
+
+        if getattr(self, "paused_for_call", False):
+            print("[CCTV] Blocked start_cctv: active video call in progress.")
+            return {"success": False, "error": "Video call currently in progress"}
 
         if self.cctv_recording:
             return {
@@ -1331,16 +1398,10 @@ class CameraManager:
                         audio_cmd = [
                             "ffmpeg", "-y", "-nostdin",
                             fmt_flag, fmt, "-i", dev,
-                            "-ac", "1", "-ar", "32000",
+                            "-ac", "1", "-ar", "48000",
+                            "-af", "volume=2.5",
+                            "-c:a", "aac", "-b:a", "128k", "-f", "adts", str(temp_audio_path)
                         ]
-                        if getattr(self, "audio_noise_cancellation", True):
-                            audio_cmd.extend([
-                                "-af",
-                                "highpass=f=75,lowpass=f=8000,afftdn=nr=10:nf=-52:tn=1,volume=3.5,alimiter=limit=0.96"
-                            ])
-                        else:
-                            audio_cmd.extend(["-af", "highpass=f=60,volume=3.5,alimiter=limit=0.96"])
-                        audio_cmd.extend(["-c:a", "aac", "-b:a", "96k", "-f", "adts", str(temp_audio_path)])
                         audio_proc = subprocess.Popen(
                             audio_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                         )

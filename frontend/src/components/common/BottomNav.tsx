@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Gamepad2, Video, Monitor, MoreHorizontal,
   Terminal, Folder, Cpu, Bot, Tv, Server, History, Settings, X, Smartphone,
-  PhoneCall
+  PhoneCall, Workflow
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useCall } from '../../context/CallContext';
@@ -51,6 +51,7 @@ export const BottomNav: React.FC = () => {
   ];
 
   const moreItems = [
+    { label: 'n8n Workflows', icon: Workflow, route: '/n8n' },
     { label: 'Terminal', icon: Terminal, route: '/terminal' },
     { label: 'File Manager', icon: Folder, route: '/files' },
     { label: 'System Control', icon: Cpu, route: '/system' },
@@ -69,13 +70,11 @@ export const BottomNav: React.FC = () => {
 
   const handleStartCall = () => {
     triggerHaptic(40);
-    if (callState === 'idle') {
-      startCall();
-    }
-    // If call is active, the VideoCallModal is already visible
+    setActiveRoute('/call');
   };
 
   const isCallActive = callState !== 'idle';
+  const isCallRoute = activeRoute === '/call';
 
   return (
     <>
@@ -109,11 +108,11 @@ export const BottomNav: React.FC = () => {
         <button
           onClick={handleStartCall}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
-            isCallActive ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
+            isCallRoute ? 'text-emerald-400 font-bold' : isCallActive ? 'text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'
           }`}
           title={isCallActive ? 'Call Active' : 'Start Video Call'}
         >
-          <div className={`p-1 rounded-lg relative ${isCallActive ? 'bg-emerald-500/20' : ''}`}>
+          <div className={`p-1 rounded-lg relative ${isCallRoute || isCallActive ? 'bg-emerald-500/20' : ''}`}>
             <PhoneCall className="w-5 h-5" />
             {isCallActive && (
               <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">

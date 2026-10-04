@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://certainly-satisfaction-fleet-lovers.trycloudflare.com",
+  "cloudflare_url": "https://fate-pie-old-per.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-04T15:02:30.391345",
-  "timestamp": 1791126150
+  "updated_at": "2026-10-04T16:53:49.458438",
+  "timestamp": 1791132829
 }

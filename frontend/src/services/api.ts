@@ -81,11 +81,23 @@ export const api = {
     });
     if (!res.ok) throw new Error('Bulk download failed');
     const blob = await res.blob();
+    const fileName = `smart_remote_files_${Date.now()}.zip`;
+    const bridge = (window as any).AndroidBridge;
+    if (bridge && typeof bridge.saveBase64File === 'function') {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        bridge.saveBase64File(fileName, reader.result as string, 'application/zip');
+      };
+      reader.readAsDataURL(blob);
+      return true;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `smart_remote_files_${Date.now()}.zip`;
+    a.download = fileName;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
     return true;
   },
@@ -507,6 +519,29 @@ export const api = {
   triggerSiren: (action: 'start' | 'stop', duration_sec: number = 30) => request<{ active: boolean; message?: string }>('/api/camera/siren/trigger', {
     method: 'POST',
     body: JSON.stringify({ action, duration_sec })
+  }),
+
+  // ── n8n Smart Automation & Workflow Hub ──────────────────────────────────
+  getN8nStatus: () => request<{
+    online: boolean;
+    status: string;
+    base_url: string;
+    webhook_url: string;
+    enabled: boolean;
+    triggers: Record<string, boolean>;
+  }>('/api/n8n/status'),
+  getN8nConfig: () => request<any>('/api/n8n/config'),
+  updateN8nConfig: (config: any) => request<any>('/api/n8n/config', {
+    method: 'POST',
+    body: JSON.stringify(config)
+  }),
+  testN8nTrigger: (payload: { event: string; data?: any }) => request<any>('/api/n8n/test-trigger', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  executeN8nAction: (payload: { action: string; params?: any }) => request<any>('/api/n8n/action', {
+    method: 'POST',
+    body: JSON.stringify(payload)
   })
 };
 

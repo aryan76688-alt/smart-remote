@@ -235,27 +235,7 @@ export const ScreenMirrorView: React.FC = () => {
     }
   };
 
-  const [noiseCancellation, setNoiseCancellation] = useState<boolean>(true);
   const [autoLightAdjust, setAutoLightAdjust] = useState<boolean>(true);
-
-  const handleToggleNoiseCancellation = async () => {
-    const nextVal = !noiseCancellation;
-    setNoiseCancellation(nextVal);
-    try {
-      await api.toggleAudioNoiseCancellation(nextVal);
-      addNotification(
-        'Noise Cancellation',
-        nextVal ? 'Microphone Noise Cancellation ENABLED' : 'Microphone Noise Cancellation DISABLED',
-        'info'
-      );
-      if (cctvAudioRef.current && cctvAudioEnabled) {
-        cctvAudioRef.current.src = `/api/camera/laptop/audio?denoise=${nextVal ? 1 : 0}&t=${Date.now()}`;
-        cctvAudioRef.current.play().catch(() => {});
-      }
-    } catch {
-      setNoiseCancellation(!nextVal);
-    }
-  };
 
   const handleToggleAutoLight = async () => {
     const nextVal = !autoLightAdjust;
@@ -461,9 +441,6 @@ export const ScreenMirrorView: React.FC = () => {
       if (status.night_mode !== undefined) {
         setNightMode(status.night_mode);
       }
-      if (status.audio_noise_cancellation !== undefined) {
-        setNoiseCancellation(Boolean(status.audio_noise_cancellation));
-      }
       if (status.auto_light_adjust !== undefined) {
         setAutoLightAdjust(Boolean(status.auto_light_adjust));
       }
@@ -502,7 +479,7 @@ export const ScreenMirrorView: React.FC = () => {
     if (showLaptopCam || showLaptopCamFullscreen) {
       if (cctvAudioEnabled) {
         if (!audio.src.includes('/api/camera/laptop/audio')) {
-          audio.src = `/api/camera/laptop/audio?denoise=${noiseCancellation ? 1 : 0}&t=${Date.now()}`;
+          audio.src = `/api/camera/laptop/audio?t=${Date.now()}`;
         }
         audio.volume = cctvAudioVolume;
         audio.play().catch(() => {
@@ -515,14 +492,14 @@ export const ScreenMirrorView: React.FC = () => {
       audio.pause();
       audio.src = '';
     }
-  }, [showLaptopCam, showLaptopCamFullscreen, cctvAudioEnabled, cctvAudioVolume, noiseCancellation]);
+  }, [showLaptopCam, showLaptopCamFullscreen, cctvAudioEnabled, cctvAudioVolume]);
 
   const toggleCctvAudio = () => {
     const next = !cctvAudioEnabled;
     setCctvAudioEnabled(next);
     if (cctvAudioRef.current) {
       if (next) {
-        cctvAudioRef.current.src = `/api/camera/laptop/audio?denoise=${noiseCancellation ? 1 : 0}&t=${Date.now()}`;
+        cctvAudioRef.current.src = `/api/camera/laptop/audio?t=${Date.now()}`;
         cctvAudioRef.current.volume = cctvAudioVolume;
         cctvAudioRef.current.play().catch(() => {});
       } else {
@@ -1266,20 +1243,7 @@ export const ScreenMirrorView: React.FC = () => {
                 <span>{motionEnabled ? 'ON' : 'OFF'}</span>
               </button>
 
-              {/* Noise Cancellation Toggle */}
-              <button
-                onClick={handleToggleNoiseCancellation}
-                className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
-                  noiseCancellation
-                    ? 'bg-teal-500/20 text-teal-300 border border-teal-400 shadow-sm shadow-teal-500/20'
-                    : 'bg-slate-900 hover:bg-slate-800 text-slate-500'
-                }`}
-                title="Toggle Laptop Microphone Noise Cancellation (strips fan hum and background hiss)"
-              >
-                <Waves className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">NOISE CANCEL: </span>
-                <span>{noiseCancellation ? 'ON' : 'OFF'}</span>
-              </button>
+
 
               {/* Auto Light Adjust Toggle */}
               <button
@@ -1579,20 +1543,9 @@ export const ScreenMirrorView: React.FC = () => {
               </button>
             </div>
 
-            {/* PiP Noise Cancel & Auto Light Adjust Row */}
+            {/* PiP Auto Light Adjust Row */}
             <div className="flex items-center gap-1.5 pt-0.5">
-              <button
-                onClick={handleToggleNoiseCancellation}
-                className={`flex-1 py-1 rounded-xl font-mono text-[10px] font-bold flex items-center justify-center gap-1 border transition-all ${
-                  noiseCancellation
-                    ? 'bg-teal-500/20 text-teal-300 border-teal-500/50'
-                    : 'bg-slate-900 text-slate-500 border-slate-800'
-                }`}
-                title="Toggle Laptop Microphone Noise Cancellation"
-              >
-                <Waves className="w-3 h-3" />
-                <span>NOISE CANCEL: {noiseCancellation ? 'ON' : 'OFF'}</span>
-              </button>
+
 
               <button
                 onClick={handleToggleAutoLight}

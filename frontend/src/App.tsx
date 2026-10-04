@@ -29,6 +29,8 @@ import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CctvPage } from './pages/CctvPage';
 import { LaptopCallPage } from './pages/LaptopCallPage';
+import { CallPage } from './pages/CallPage';
+import { N8nPage } from './pages/N8nPage';
 
 const AppContent: React.FC = () => {
   const {
@@ -99,8 +101,12 @@ const AppContent: React.FC = () => {
   // PAGE 3: Main Remote Controller
   const renderActivePage = () => {
     switch (activeRoute) {
+      case '/call':
+        return <CallPage />;
       case '/cctv':
         return <CctvPage />;
+      case '/n8n':
+        return <N8nPage />;
       case '/terminal':
         return <TerminalPage />;
       case '/mirror':

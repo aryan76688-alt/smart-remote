@@ -12,6 +12,7 @@ interface CallContextType {
   isMicMuted: boolean;
   isVideoMuted: boolean;
   callDurationSec: number;
+  facingMode: 'user' | 'environment';
   startCall: () => void;
   acceptCall: () => void;
   rejectCall: () => void;
@@ -19,6 +20,8 @@ interface CallContextType {
   toggleMicMute: () => void;
   toggleVideoMute: () => void;
   switchCameraFacing: () => void;
+  initPreview: () => Promise<MediaStream | null>;
+  stopPreview: () => void;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -27,7 +30,13 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { isApk, triggerHaptic, addNotification } = useApp();
 
   const [callState, setCallState] = useState<CallState>('idle');
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('session_id') || null;
+    }
+    return null;
+  });
   const [remoteRole, setRemoteRole] = useState<string>('laptop');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -36,11 +45,17 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [callDurationSec, setCallDurationSec] = useState<number>(0);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
+  const sessionIdRef = useRef<string | null>(sessionId);
   const wsRef = useRef<WebSocket | null>(null);
   const peerConnRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const durationTimerRef = useRef<number | null>(null);
   const ringtoneTimerRef = useRef<number | null>(null);
+  const iceCandidateQueueRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   // Initialize WebSocket connection for call signaling
   useEffect(() => {
@@ -59,6 +74,20 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('[CALL-WS] Connected as', role);
+        const autoJoin = urlParams.get('auto_join') === 'true';
+        const urlSid = urlParams.get('session_id');
+        if (autoJoin && urlSid) {
+          sessionIdRef.current = urlSid;
+          setSessionId(urlSid);
+          ws.send(JSON.stringify({
+            type: 'call_accept',
+            session_id: urlSid
+          }));
+        }
+      };
 
       ws.onmessage = async (event) => {
         try {
@@ -102,15 +131,24 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (event.candidate && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           type: 'ice_candidate',
+          session_id: sessionIdRef.current,
           candidate: event.candidate
         }));
       }
     };
 
     pc.ontrack = (event) => {
-      console.log('[WEBRTC] Remote track received:', event.streams);
+      console.log('[WEBRTC] Remote track received:', event.track.kind, event.streams);
       if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
+      } else {
+        setRemoteStream(prev => {
+          const stream = prev || new MediaStream();
+          if (!stream.getTracks().find(t => t.id === event.track.id)) {
+            stream.addTrack(event.track);
+          }
+          return stream;
+        });
       }
     };
 
@@ -158,12 +196,21 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }, 1500);
         break;
 
-      case 'call_accepted':
-        if (callState === 'calling' && peerConnRef.current) {
-          // Responder picked up
+      case 'peer_joined':
+        console.log('[WEBRTC] Peer joined call session:', msg);
+        if (callState === 'calling' || callState === 'incoming') {
           setCallState('connected');
           startCallTimer();
         }
+        // Send fresh offer to the connected peer
+        sendOfferToPeer();
+        break;
+
+      case 'call_accepted':
+        console.log('[WEBRTC] Peer accepted call');
+        setCallState('connected');
+        startCallTimer();
+        sendOfferToPeer();
         break;
 
       case 'call_rejected':
@@ -180,6 +227,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       case 'webrtc_offer':
         try {
+          console.log('[WEBRTC] Received offer from peer');
           let pc = peerConnRef.current;
           if (!pc) {
             pc = createPeerConnection();
@@ -198,6 +246,13 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+            // Drain buffered ICE candidates
+            while (iceCandidateQueueRef.current.length > 0) {
+              const candidate = iceCandidateQueueRef.current.shift();
+              if (candidate) {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+              }
+            }
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -216,20 +271,70 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         break;
 
       case 'webrtc_answer':
-        if (peerConnRef.current) {
-          await peerConnRef.current.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        try {
+          console.log('[WEBRTC] Received answer from peer');
+          if (peerConnRef.current) {
+            await peerConnRef.current.setRemoteDescription(new RTCSessionDescription(msg.answer));
+            // Drain buffered ICE candidates
+            while (iceCandidateQueueRef.current.length > 0) {
+              const candidate = iceCandidateQueueRef.current.shift();
+              if (candidate) {
+                await peerConnRef.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[WEBRTC] Error processing answer:', e);
         }
         break;
 
       case 'ice_candidate':
-        if (peerConnRef.current && msg.candidate) {
-          try {
-            await peerConnRef.current.addIceCandidate(new RTCIceCandidate(msg.candidate));
-          } catch (e) {
-            console.error('[WEBRTC] Error adding ice candidate:', e);
+        if (msg.candidate) {
+          if (peerConnRef.current && peerConnRef.current.remoteDescription) {
+            try {
+              await peerConnRef.current.addIceCandidate(new RTCIceCandidate(msg.candidate));
+            } catch (e) {
+              console.error('[WEBRTC] Error adding ice candidate:', e);
+            }
+          } else {
+            iceCandidateQueueRef.current.push(msg.candidate);
           }
         }
         break;
+    }
+  };
+
+  const sendOfferToPeer = async () => {
+    try {
+      let stream = localStreamRef.current;
+      if (!stream) {
+        stream = await getUserMediaStream(facingMode);
+      }
+      let pc = peerConnRef.current;
+      if (!pc) {
+        pc = createPeerConnection();
+      }
+      if (stream && pc) {
+        const existingSenders = pc.getSenders();
+        stream.getTracks().forEach(track => {
+          if (!existingSenders.find(s => s.track === track)) {
+            pc.addTrack(track, stream);
+          }
+        });
+      }
+      if (pc) {
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+        await pc.setLocalDescription(offer);
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'webrtc_offer',
+            session_id: sessionIdRef.current,
+            offer
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('[CALL] Failed to create offer:', err);
     }
   };
 
@@ -237,7 +342,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
@@ -245,7 +350,9 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (e) {
       console.warn('[CALL] Full A/V capture failed, attempting audio only:', e);
       try {
-        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioOnly = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+        });
         localStreamRef.current = audioOnly;
         setLocalStream(audioOnly);
         return audioOnly;
@@ -430,6 +537,28 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const initPreview = async (): Promise<MediaStream | null> => {
+    try {
+      if (localStreamRef.current && localStreamRef.current.active) {
+        setLocalStream(localStreamRef.current);
+        return localStreamRef.current;
+      }
+      const stream = await getUserMediaStream(facingMode);
+      return stream;
+    } catch (e) {
+      console.warn('Preview error:', e);
+      return null;
+    }
+  };
+
+  const stopPreview = () => {
+    if (callState === 'idle' && localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(t => t.stop());
+      localStreamRef.current = null;
+      setLocalStream(null);
+    }
+  };
+
   return (
     <CallContext.Provider
       value={{
@@ -441,13 +570,16 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isMicMuted,
         isVideoMuted,
         callDurationSec,
+        facingMode,
         startCall,
         acceptCall,
         rejectCall,
         endCall,
         toggleMicMute,
         toggleVideoMute,
-        switchCameraFacing
+        switchCameraFacing,
+        initPreview,
+        stopPreview
       }}
     >
       {children}
