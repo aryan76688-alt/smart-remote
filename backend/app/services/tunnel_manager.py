@@ -224,10 +224,72 @@ class TunnelManager:
                         url_found = True
                         self.logs.append(f"[SYSTEM] ✓ PUBLIC HTTPS URL LIVE: {target_url}")
                         logger.info(f"Public HTTPS tunnel established: {target_url}")
+                        self._publish_current_server_info(target_url)
 
             except Exception as e:
                 self.logs.append(f"[ERROR] Stream reader error: {e}")
                 break
+
+    def _publish_current_server_info(self, public_url: str):
+        """Saves current_server.json locally and syncs to GitHub in background so APK can auto-discover."""
+        def worker():
+            try:
+                import json
+                from datetime import datetime
+                from app.config import settings
+                from app.system.monitor import system_monitor
+                info = system_monitor.get_info()
+
+                payload = {
+                    "cloudflare_url": public_url,
+                    "tailscale_url": f"http://{settings.TAILSCALE_IP}:{settings.PORT}",
+                    "local_wifi_url": f"http://{info.local_ip}:{settings.PORT}",
+                    "tunnel_status": "active",
+                    "active_provider": self.active_provider,
+                    "updated_at": datetime.utcnow().isoformat(),
+                    "timestamp": int(time.time())
+                }
+
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+                json_path = os.path.join(project_root, "current_server.json")
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2)
+
+                for sub in ["frontend/dist", "frontend/public", "backend/static"]:
+                    p = os.path.join(project_root, sub, "current_server.json")
+                    try:
+                        os.makedirs(os.path.dirname(p), exist_ok=True)
+                        with open(p, "w", encoding="utf-8") as f:
+                            json.dump(payload, f, indent=2)
+                    except Exception:
+                        pass
+
+                subprocess.run(
+                    ["git", "add", "current_server.json"],
+                    cwd=project_root,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", f"chore: update active cloudflare server url [{public_url}]"],
+                    cwd=project_root,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
+                )
+                subprocess.run(
+                    ["git", "push", "origin", "main"],
+                    cwd=project_root,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=15
+                )
+                logger.info(f"Published active server URL to GitHub: {public_url}")
+            except Exception as e:
+                logger.warning(f"Failed to publish current_server.json: {e}")
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def stop(self) -> Dict[str, Any]:
         with self.lock:

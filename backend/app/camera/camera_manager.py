@@ -1044,28 +1044,26 @@ class CameraManager:
                 fmt_flag, fmt,
                 "-i", device,
                 "-ac", "1",
-                "-ar", "44100",
+                "-ar", "48000",
             ]
             if use_denoise:
                 cmd.extend([
                     "-af",
-                    # Clean adaptive noise filter tuned for laptop microphone:
-                    # 1. highpass=f=75: eliminate low AC rumble & desk vibrations
-                    # 2. lowpass=f=8000: preserve full vocal clarity while eliminating high hiss
-                    # 3. afftdn=nr=10:nf=-52:tn=1: gentle FFT noise suppression without clipping quiet speech
-                    # 4. volume=3.5: amplify speech clearly for mobile speaker playback
-                    # 5. alimiter=limit=0.96: prevent any digital clipping
                     "highpass=f=75,lowpass=f=8000,afftdn=nr=10:nf=-52:tn=1,volume=3.5,alimiter=limit=0.96"
                 ])
             else:
                 cmd.extend(["-af", "highpass=f=60,volume=3.5,alimiter=limit=0.96"])
             cmd.extend([
-                "-c:a", "libmp3lame",
-                "-b:a", "96k",
+                "-c:a", "libopus",
+                "-b:a", "32k",
+                "-vbr", "on",
+                "-compression_level", "10",
+                "-frame_duration", "20",
+                "-application", "voip",
                 "-flush_packets", "1",
                 "-fflags", "nobuffer",
                 "-flags", "low_delay",
-                "-f", "mp3",
+                "-f", "webm",
                 "pipe:1"
             ])
             return cmd
@@ -1293,13 +1291,14 @@ class CameraManager:
         synchronized microphone audio capture, and rolling chunk rotation.
         """
         while self.cctv_recording and not self.cctv_stop_event.is_set():
-            # Generate new 30-minute chunk filename
+            # Generate new chunk filename formatted as time,date (e.g. 17-05-30,04-10-2026.mp4)
             now = datetime.datetime.now()
-            timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-            filename = f"cctv_{timestamp_str}.mp4"
+            time_date_str = now.strftime("%H-%M-%S,%d-%m-%Y")
+            filename = f"{time_date_str}.mp4"
             final_filepath = self.cctv_recordings_dir / filename
-            temp_video_path = self.cctv_recordings_dir / f"tmp_v_{timestamp_str}.mp4"
-            temp_audio_path = self.cctv_recordings_dir / f"tmp_a_{timestamp_str}.aac"
+            raw_ts = now.strftime("%Y%m%d_%H%M%S")
+            temp_video_path = self.cctv_recordings_dir / f"tmp_v_{raw_ts}.mp4"
+            temp_audio_path = self.cctv_recordings_dir / f"tmp_a_{raw_ts}.aac"
 
             self.cctv_current_filename = filename
             self.cctv_chunk_start_time = time.time()

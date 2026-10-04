@@ -11,19 +11,6 @@ router = APIRouter(prefix="/camera", tags=["camera"])
 @router.get("/status")
 def get_camera_status():
     """Get status of laptop webcam, phone stream, and CCTV recording."""
-    is_cloud = bool(os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RAILWAY_PROJECT_ID"))
-    if is_cloud:
-        from app.api.tunnel import _registered_laptop_node
-        node_url = _registered_laptop_node.get("tunnel_url")
-        if node_url:
-            try:
-                import requests
-                r = requests.get(f"{node_url}/api/camera/status", timeout=3)
-                if r.status_code == 200:
-                    return r.json()
-            except Exception:
-                pass
-
     cctv = camera_manager.get_cctv_status()
     return {
         "laptop_camera_available": CV2_AVAILABLE,
@@ -46,23 +33,6 @@ def get_camera_status():
 @router.get("/laptop/stream")
 def stream_laptop_camera(quality: int = Query(75, ge=30, le=95), fps: int = Query(30, ge=5, le=60)):
     """MJPEG stream of Kali Linux laptop webcam in HD to view in mobile browser."""
-    is_cloud = bool(os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RAILWAY_PROJECT_ID"))
-    if is_cloud:
-        from app.api.tunnel import _registered_laptop_node
-        node_url = _registered_laptop_node.get("tunnel_url")
-        if node_url:
-            import httpx
-            async def proxy_mjpeg():
-                try:
-                    async with httpx.AsyncClient(timeout=None) as client:
-                        async with client.stream("GET", f"{node_url}/api/camera/laptop/stream?quality={quality}&fps={fps}") as r:
-                            async for chunk in r.aiter_bytes():
-                                yield chunk
-                except Exception:
-                    pass
-            return StreamingResponse(
-                proxy_mjpeg(),
-                media_type="multipart/x-mixed-replace; boundary=frame",
                 headers={
                     "Cache-Control": "no-cache, no-store, must-revalidate",
                     "X-Accel-Buffering": "no"
@@ -98,38 +68,9 @@ def stream_laptop_audio(request: Request):
             }
         )
 
-    is_cloud = bool(os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RAILWAY_PROJECT_ID"))
-    if is_cloud:
-        from app.api.tunnel import _registered_laptop_node
-        node_url = _registered_laptop_node.get("tunnel_url")
-        if node_url:
-            import httpx
-            async def proxy_audio():
-                try:
-                    async with httpx.AsyncClient(timeout=None) as client:
-                        target_url = f"{node_url}/api/camera/audio/stream"
-                        if raw_denoise is not None:
-                            target_url += f"?denoise={raw_denoise}"
-                        async with client.stream("GET", target_url) as r:
-                            async for chunk in r.aiter_bytes():
-                                yield chunk
-                except Exception:
-                    pass
-            return StreamingResponse(
-                proxy_audio(),
-                media_type="audio/mpeg",
-                headers={
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "Pragma": "no-cache",
-                    "Expires": "0",
-                    "Accept-Ranges": "none",
-                    "X-Accel-Buffering": "no"
-                }
-            )
-
     return StreamingResponse(
         camera_manager.audio_stream_generator(denoise=denoise),
-        media_type="audio/mpeg",
+        media_type="audio/webm",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",

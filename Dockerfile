@@ -29,7 +29,7 @@ COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
 # Copy APK into static paths so it's downloadable
 COPY backend/static/SmartRemote.apk ./frontend/dist/SmartRemote.apk
 
-# Railway injects PORT env var; uvicorn reads it
+# Environment configuration; uvicorn reads PORT or defaults to 7070
 ENV PYTHONUNBUFFERED=1
 ENV ENVIRONMENT=production
 

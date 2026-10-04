@@ -184,11 +184,17 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (!pc) {
             pc = createPeerConnection();
           }
-          if (!localStreamRef.current) {
-            const stream = await getUserMediaStream(facingMode);
-            if (stream && pc) {
-              stream.getTracks().forEach(track => pc.addTrack(track, stream));
-            }
+          let stream = localStreamRef.current;
+          if (!stream) {
+            stream = await getUserMediaStream(facingMode);
+          }
+          if (stream && pc) {
+            const existingSenders = pc.getSenders();
+            stream.getTracks().forEach(track => {
+              if (!existingSenders.find(s => s.track === track)) {
+                pc.addTrack(track, stream);
+              }
+            });
           }
           if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
@@ -262,11 +268,22 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       fetch('/api/call/direct_start', { method: 'POST' }).catch(() => {});
     } catch {}
 
-    const stream = await getUserMediaStream(facingMode);
-    const pc = createPeerConnection();
+    let stream = localStreamRef.current;
+    if (!stream) {
+      stream = await getUserMediaStream(facingMode);
+    }
+    let pc = peerConnRef.current;
+    if (!pc) {
+      pc = createPeerConnection();
+    }
 
     if (stream) {
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      const existingSenders = pc.getSenders();
+      stream.getTracks().forEach(track => {
+        if (!existingSenders.find(s => s.track === track)) {
+          pc.addTrack(track, stream);
+        }
+      });
     }
 
     try {
@@ -300,11 +317,22 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCallState('connected');
     startCallTimer();
 
-    const stream = await getUserMediaStream(facingMode);
-    const pc = createPeerConnection();
+    let stream = localStreamRef.current;
+    if (!stream) {
+      stream = await getUserMediaStream(facingMode);
+    }
+    let pc = peerConnRef.current;
+    if (!pc) {
+      pc = createPeerConnection();
+    }
 
     if (stream) {
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      const existingSenders = pc.getSenders();
+      stream.getTracks().forEach(track => {
+        if (!existingSenders.find(s => s.track === track)) {
+          pc.addTrack(track, stream);
+        }
+      });
     }
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {

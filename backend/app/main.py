@@ -55,13 +55,25 @@ app.add_middleware(
 # Mount API routes
 app.include_router(api_router)
 
+@app.get("/current_server.json")
+def get_current_server_json():
+    """Provides active server routing information for client apps and APK auto-switching."""
+    import time
+    from app.system.monitor import system_monitor
+    info = system_monitor.get_info()
+    tunnel_status = tunnel_manager.get_status()
+    public_url = tunnel_status.get("public_url") or ""
+    return {
+        "cloudflare_url": public_url,
+        "tailscale_url": f"http://{settings.TAILSCALE_IP}:{settings.PORT}",
+        "local_wifi_url": f"http://{info.local_ip}:{settings.PORT}",
+        "tunnel_status": tunnel_status.get("status", "stopped"),
+        "active_provider": tunnel_status.get("active_provider", "none"),
+        "timestamp": int(time.time())
+    }
+
 @app.on_event("startup")
 def on_startup():
-    is_cloud = bool(os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RAILWAY_PROJECT_ID"))
-    if is_cloud:
-        print("[STARTUP] Running on Railway cloud — skipping local tunnel & CCTV hardware.")
-        return
-
     # Auto-start global access tunnel in background so URL is immediately ready
     try:
         tunnel_manager.start(provider="auto")
@@ -79,20 +91,11 @@ def on_startup():
     except Exception as e:
         print(f"[CCTV] Startup autostart warning: {e}")
 
-    # Start Railway cloud bridge for instant direct video calls & tunnel sync
-    try:
-        from app.services.railway_bridge import railway_bridge
-        railway_bridge.start()
-    except Exception as e:
-        print(f"[RAILWAY-BRIDGE] Startup warning: {e}")
+
 
 @app.on_event("shutdown")
 def on_shutdown():
-    try:
-        from app.services.railway_bridge import railway_bridge
-        railway_bridge.stop()
-    except Exception:
-        pass
+
     try:
         tunnel_manager.stop()
     except Exception:

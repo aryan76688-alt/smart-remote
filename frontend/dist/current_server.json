@@ -1,0 +1,9 @@
+{
+  "cloudflare_url": "https://bureau-glossary-coordinates-fits.trycloudflare.com",
+  "tailscale_url": "http://100.69.194.11:7070",
+  "local_wifi_url": "http://192.168.31.141:7070",
+  "tunnel_status": "active",
+  "active_provider": "cloudflare",
+  "updated_at": "2026-10-04T11:42:00Z",
+  "timestamp": 1759578120
+}

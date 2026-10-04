@@ -4,9 +4,16 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Typeface
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -14,12 +21,12 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.text.format.Formatter
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.*
-import android.content.pm.ActivityInfo
 import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -32,7 +39,11 @@ import androidx.core.view.WindowInsetsControllerCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity() {
 
@@ -46,19 +57,39 @@ class MainActivity : ComponentActivity() {
     private val PREFS_NAME = "smart_remote_prefs"
     private val KEY_SERVER_URL = "server_url"
     private val KEY_LAST_KNOWN_TUNNEL = "last_known_tunnel_url"
+    private val KEY_CUSTOM_URL = "custom_user_url"
 
-    private val RAILWAY_URL = "https://smart-remote-app-production.up.railway.app"
-    private val TAILSCALE_URL = "http://100.69.194.11:7070"
-    private val LOCAL_WIFI_URL = "http://192.168.31.141:7070"
+    private val TAILSCALE_DEFAULT_URL = "http://100.69.194.11:7070"
+    private val LOCAL_WIFI_DEFAULT_URL = "http://192.168.31.141:7070"
+    private val GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/aryan76688-alt/smart-remote/main/current_server.json"
 
+    private var activeServerUrl: String = ""
+    private var activeServerType: String = "auto"
     private var lastBackPressTime: Long = 0
     var defaultStatusBarHeight: Int = 0
     var isFullscreenMode: Boolean = false
     var customView: View? = null
     var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
-    private val executor = Executors.newSingleThreadExecutor()
+    private val isDiscovering = AtomicBoolean(false)
+    private val executor = Executors.newFixedThreadPool(6)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    data class ServerCandidate(
+        val id: String,
+        val name: String,
+        val url: String,
+        val priorityBonusMs: Long = 0L
+    )
+
+    data class ServerProbeResult(
+        val candidate: ServerCandidate,
+        val isAlive: Boolean,
+        val latencyMs: Long,
+        val discoveredTunnelUrl: String? = null
+    )
 
     fun applyFullscreen(enable: Boolean) {
         isFullscreenMode = enable
@@ -141,6 +172,15 @@ class MainActivity : ComponentActivity() {
         rootLayout.addView(loadingOverlay)
         setContentView(rootLayout)
 
+        setupBackPressHandler()
+        setupNetworkAutoFailover()
+
+        // Kick off smart best server discovery
+        showLoadingOverlay("Finding best server & measuring latency...")
+        discoverAndLoadBestServer(force = true)
+    }
+
+    private fun setupBackPressHandler() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (customView != null) {
@@ -170,74 +210,277 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
-
-        // Immediate direct load using Railway cloud server as default
-        showLoadingOverlay("Connecting to Smart Remote...\nLoading Railway Cloud...")
-        discoverAndLoad()
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // SMART URL LOADER
-    // Priority: 1) User custom-saved URL (if set and not default)
-    //           2) Railway Cloud Server (Global anywhere, anytime without VPN)
+    // NETWORK FAILOVER LISTENER
     // ──────────────────────────────────────────────────────────────────────────
-    private fun discoverAndLoad() {
-        val saved = getSavedUrl()
-        val targetUrl = if (!saved.isNullOrBlank() && saved != RAILWAY_URL) saved else RAILWAY_URL
-        mainHandler.post {
-            loadUrl(targetUrl)
-        }
-    }
+    private fun setupNetworkAutoFailover() {
+        try {
+            connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
 
-    private fun tryConnect(url: String, timeoutMs: Int = 4000): Boolean {
-        return try {
-            val conn = URL("$url/api/system/info").openConnection() as HttpURLConnection
-            conn.connectTimeout = timeoutMs
-            conn.readTimeout = timeoutMs
-            conn.requestMethod = "GET"
-            conn.instanceFollowRedirects = true
-            val code = conn.responseCode
-            conn.disconnect()
-            code in 200..299
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun fetchLiveTunnelUrl(): String? {
-        // Try to hit the backend tunnel status API via multiple bootstrap endpoints
-        val bootstrapEndpoints = listOf(
-            TAILSCALE_URL,
-            "http://192.168.1.1:7070",   // Common home router subnet
-            "http://192.168.0.1:7070",
-            "http://10.0.0.1:7070"
-        )
-
-        for (base in bootstrapEndpoints) {
-            try {
-                val conn = URL("$base/api/tunnel/status").openConnection() as HttpURLConnection
-                conn.connectTimeout = 3000
-                conn.readTimeout = 3000
-                conn.requestMethod = "GET"
-                if (conn.responseCode == 200) {
-                    val body = conn.inputStream.bufferedReader().readText()
-                    conn.disconnect()
-                    val json = JSONObject(body)
-                    val publicUrl = json.optString("public_url", "")
-                    if (publicUrl.isNotEmpty() && publicUrl != "null") {
-                        return publicUrl
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    // Network transitioned or reconnected
+                    if (errorLayout.visibility == View.VISIBLE) {
+                        mainHandler.post {
+                            showLoadingOverlay("Network connected!\nSwitching to best server...")
+                            discoverAndLoadBestServer(force = true)
+                        }
                     }
-                } else {
-                    conn.disconnect()
                 }
-            } catch (_: Exception) {}
+
+                override fun onLost(network: Network) {
+                    // Lost active network (e.g. Wi-Fi disconnected while walking outside)
+                    mainHandler.postDelayed({
+                        if (!isFinishing) {
+                            showLoadingOverlay("Network changed...\nAuto-switching to best server...")
+                            discoverAndLoadBestServer(force = true)
+                        }
+                    }, 800)
+                }
+            }
+
+            connectivityManager?.registerNetworkCallback(request, networkCallback!!)
+        } catch (_: Exception) {}
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // INTELLIGENT AUTO BEST SERVER ENGINE
+    // ──────────────────────────────────────────────────────────────────────────
+    fun discoverAndLoadBestServer(force: Boolean = false) {
+        if (!force && isDiscovering.get()) return
+        isDiscovering.set(true)
+
+        executor.execute {
+            try {
+                val candidateList = mutableListOf<ServerCandidate>()
+
+                // 1. Local Wi-Fi (Primary LAN candidate, ultra low latency 60fps)
+                candidateList.add(
+                    ServerCandidate(
+                        id = "local",
+                        name = "Local Wi-Fi",
+                        url = LOCAL_WIFI_DEFAULT_URL,
+                        priorityBonusMs = -150L
+                    )
+                )
+
+                // Dynamic local subnet candidate if phone is on Wi-Fi
+                try {
+                    val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                    val ipInt = wm?.connectionInfo?.ipAddress ?: 0
+                    if (ipInt != 0) {
+                        val deviceIp = Formatter.formatIpAddress(ipInt)
+                        val lastDot = deviceIp.lastIndexOf('.')
+                        if (lastDot > 0) {
+                            val subnet = deviceIp.substring(0, lastDot)
+                            val dynamicCandidate = "http://$subnet.141:7070"
+                            if (dynamicCandidate != LOCAL_WIFI_DEFAULT_URL) {
+                                candidateList.add(
+                                    ServerCandidate(
+                                        id = "local_dyn",
+                                        name = "Local Subnet ($subnet.141)",
+                                        url = dynamicCandidate,
+                                        priorityBonusMs = -140L
+                                    )
+                                )
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+
+                // 2. Tailscale VPN
+                candidateList.add(
+                    ServerCandidate(
+                        id = "tailscale",
+                        name = "Tailscale VPN",
+                        url = TAILSCALE_DEFAULT_URL,
+                        priorityBonusMs = -60L
+                    )
+                )
+
+                // 3. User Custom URL if configured
+                val customUrl = getCustomUrl()
+                if (!customUrl.isNullOrBlank()) {
+                    candidateList.add(
+                        ServerCandidate(
+                            id = "custom",
+                            name = "Custom Server",
+                            url = customUrl,
+                            priorityBonusMs = -40L
+                        )
+                    )
+                }
+
+                // 4. Cached Cloudflare Tunnel URL from SharedPreferences
+                val cachedTunnel = getCachedTunnelUrl()
+                if (!cachedTunnel.isNullOrBlank()) {
+                    candidateList.add(
+                        ServerCandidate(
+                            id = "cloudflare_cached",
+                            name = "Cloudflare Tunnel (Cached)",
+                            url = cachedTunnel,
+                            priorityBonusMs = 0L
+                        )
+                    )
+                }
+
+                // 5. Live Cloudflare URL discovery via GitHub repo
+                try {
+                    val ghUrl = URL("$GITHUB_CONFIG_URL?nocache=${System.currentTimeMillis()}")
+                    val ghConn = (ghUrl.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 2500
+                        readTimeout = 2500
+                        requestMethod = "GET"
+                        instanceFollowRedirects = true
+                    }
+                    if (ghConn.responseCode == 200) {
+                        val ghBody = ghConn.inputStream.bufferedReader().readText()
+                        ghConn.disconnect()
+                        val ghJson = JSONObject(ghBody)
+                        val cloudflareLive = ghJson.optString("cloudflare_url", "").trim()
+                        if (cloudflareLive.startsWith("https://") && cloudflareLive != cachedTunnel) {
+                            saveTunnelCache(cloudflareLive)
+                            candidateList.add(
+                                ServerCandidate(
+                                    id = "cloudflare",
+                                    name = "Cloudflare Public Web",
+                                    url = cloudflareLive,
+                                    priorityBonusMs = 0L
+                                )
+                            )
+                        }
+                    } else {
+                        ghConn.disconnect()
+                    }
+                } catch (_: Exception) {}
+
+                // Parallel latency race
+                val results = CopyOnWriteArrayList<ServerProbeResult>()
+                val latch = CountDownLatch(candidateList.size)
+                val fastWinnerFound = AtomicBoolean(false)
+
+                for (cand in candidateList) {
+                    executor.execute {
+                        val probe = probeCandidate(cand)
+                        results.add(probe)
+                        // If Local Wi-Fi is reachable and blazing fast (<120ms), instant win!
+                        if (probe.isAlive && probe.candidate.id.startsWith("local") && probe.latencyMs < 120) {
+                            fastWinnerFound.set(true)
+                        }
+                        latch.countDown()
+                    }
+                }
+
+                // Wait for all candidates or fast local winner
+                if (fastWinnerFound.get()) {
+                    latch.await(300, TimeUnit.MILLISECONDS)
+                } else {
+                    latch.await(2400, TimeUnit.MILLISECONDS)
+                }
+
+                // Filter alive servers and score them
+                val aliveResults = results.filter { it.isAlive }
+
+                // Cache any discovered tunnel URL
+                for (r in aliveResults) {
+                    if (!r.discoveredTunnelUrl.isNullOrBlank()) {
+                        saveTunnelCache(r.discoveredTunnelUrl)
+                    }
+                }
+
+                val best = aliveResults.minByOrNull { it.latencyMs + it.candidate.priorityBonusMs }
+
+                mainHandler.post {
+                    isDiscovering.set(false)
+                    if (best != null) {
+                        val chosenCandidate = best.candidate
+                        activeServerUrl = chosenCandidate.url
+                        activeServerType = chosenCandidate.id
+                        saveUrl(chosenCandidate.url)
+                        loadUrl(chosenCandidate.url)
+
+                        val badge = when {
+                            chosenCandidate.id.startsWith("local") -> "⚡ Local Wi-Fi"
+                            chosenCandidate.id == "tailscale" -> "🔒 Tailscale"
+                            chosenCandidate.id.startsWith("cloudflare") -> "🌐 Cloudflare Tunnel"
+                            else -> "🚀 ${chosenCandidate.name}"
+                        }
+                        Toast.makeText(
+                            this@MainActivity,
+                            "$badge connected (${best.latencyMs}ms)",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        // All probes timed out; attempt fallback to cached URL or show connection error
+                        val fallback = getSavedUrl() ?: getCachedTunnelUrl() ?: TAILSCALE_DEFAULT_URL
+                        if (activeServerUrl.isEmpty()) {
+                            loadUrl(fallback)
+                        } else {
+                            showConnectionError(
+                                "No active servers responded.\n\n" +
+                                "• Local Wi-Fi (192.168.31.141)\n" +
+                                "• Tailscale (100.69.194.11)\n" +
+                                "• Cloudflare Tunnel\n\n" +
+                                "Tap RETRY to scan again or enter a custom server URL."
+                            )
+                        }
+                    }
+                }
+
+            } catch (e: Exception) {
+                mainHandler.post {
+                    isDiscovering.set(false)
+                    val fallback = getSavedUrl() ?: TAILSCALE_DEFAULT_URL
+                    loadUrl(fallback)
+                }
+            }
         }
-        return null
+    }
+
+    private fun probeCandidate(candidate: ServerCandidate): ServerProbeResult {
+        val start = System.currentTimeMillis()
+        var isAlive = false
+        var discoveredTunnel: String? = null
+        try {
+            val endpoint = "${candidate.url.trimEnd('/')}/api/system/info"
+            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 2200
+                readTimeout = 2200
+                requestMethod = "GET"
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "SmartRemoteMobileAndroid/6.0-AutoServer")
+            }
+            val code = conn.responseCode
+            if (code in 200..299) {
+                val stream = conn.inputStream.bufferedReader().readText()
+                isAlive = true
+                try {
+                    val json = JSONObject(stream)
+                    val tUrl = json.optString("tunnel_url", "")
+                    if (tUrl.startsWith("http")) {
+                        discoveredTunnel = tUrl
+                    }
+                } catch (_: Exception) {}
+            }
+            conn.disconnect()
+        } catch (_: Exception) {
+            isAlive = false
+        }
+        val elapsed = System.currentTimeMillis() - start
+        return ServerProbeResult(candidate, isAlive, elapsed, discoveredTunnel)
     }
 
     private fun loadUrl(url: String) {
+        val finalUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "http://$url" else url
+        activeServerUrl = finalUrl
         hideLoadingOverlay()
-        webView.loadUrl(url)
+        errorLayout.visibility = View.GONE
+        webView.loadUrl(finalUrl)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -248,13 +491,23 @@ class MainActivity : ComponentActivity() {
         return prefs.getString(KEY_SERVER_URL, null)
     }
 
+    private fun getCustomUrl(): String? {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_CUSTOM_URL, null)
+    }
+
     fun getServerUrl(): String {
-        return getSavedUrl() ?: RAILWAY_URL
+        return if (activeServerUrl.isNotEmpty()) activeServerUrl else (getSavedUrl() ?: TAILSCALE_DEFAULT_URL)
     }
 
     private fun saveUrl(url: String) {
         val clean = if (!url.startsWith("http://") && !url.startsWith("https://")) "http://$url" else url
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(KEY_SERVER_URL, clean).apply()
+    }
+
+    private fun saveCustomUrl(url: String) {
+        val clean = if (!url.startsWith("http://") && !url.startsWith("https://")) "http://$url" else url
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(KEY_CUSTOM_URL, clean).apply()
     }
 
     private fun saveTunnelCache(url: String) {
@@ -266,7 +519,9 @@ class MainActivity : ComponentActivity() {
     }
 
     fun setServerUrl(url: String) {
+        saveCustomUrl(url)
         saveUrl(url)
+        loadUrl(url)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -274,7 +529,7 @@ class MainActivity : ComponentActivity() {
     // ──────────────────────────────────────────────────────────────────────────
     private fun createLoadingOverlay(): LinearLayout {
         val tv = TextView(this).apply {
-            text = "Connecting to Smart Remote...\nFinding best server..."
+            text = "Finding best server & measuring latency..."
             setTextColor(Color.parseColor("#94a3b8"))
             textSize = 13f
             gravity = Gravity.CENTER
@@ -285,7 +540,7 @@ class MainActivity : ComponentActivity() {
             text = "⬡ SMART REMOTE"
             setTextColor(Color.parseColor("#06b6d4"))
             textSize = 20f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 32)
         }
@@ -304,7 +559,7 @@ class MainActivity : ComponentActivity() {
             addView(logo)
             addView(spinner)
             addView(tv)
-            tag = tv  // store ref for text update
+            tag = tv
             visibility = View.GONE
         }
     }
@@ -317,10 +572,6 @@ class MainActivity : ComponentActivity() {
 
     private fun hideLoadingOverlay() {
         loadingOverlay.visibility = View.GONE
-    }
-
-    private fun updateLoadingMessage(msg: String) {
-        mainHandler.post { (loadingOverlay.tag as? TextView)?.text = msg }
     }
 
     private fun showConnectionError(msg: String) {
@@ -340,10 +591,10 @@ class MainActivity : ComponentActivity() {
         }
 
         val title = TextView(this).apply {
-            text = "CONNECTION ERROR"
+            text = "ALL SERVERS UNREACHABLE"
             setTextColor(Color.parseColor("#f43f5e"))
-            textSize = 17f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
         }
 
@@ -354,31 +605,16 @@ class MainActivity : ComponentActivity() {
             setPadding(0, 20, 0, 32)
         }
 
-        val retryBtn = Button(this).apply {
-            text = "RETRY (RAILWAY CLOUD)"
+        val autoScanBtn = Button(this).apply {
+            text = "⚡ AUTO-DETECT BEST SERVER"
             setTextColor(Color.parseColor("#020617"))
             setBackgroundColor(Color.parseColor("#06b6d4"))
             textSize = 13f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.DEFAULT_BOLD
             setOnClickListener {
                 errorLayout.visibility = View.GONE
-                saveUrl(RAILWAY_URL)
-                showLoadingOverlay("Connecting to Railway Cloud...")
-                loadUrl(RAILWAY_URL)
-            }
-        }
-
-        val tailscaleBtn = Button(this).apply {
-            text = "USE TAILSCALE VPN (100.69.194.11)"
-            setTextColor(Color.parseColor("#38bdf8"))
-            setBackgroundColor(Color.parseColor("#0f172a"))
-            textSize = 12f
-            setPadding(0, 16, 0, 16)
-            setOnClickListener {
-                errorLayout.visibility = View.GONE
-                saveUrl(TAILSCALE_URL)
-                showLoadingOverlay("Connecting to Tailscale IP...")
-                loadUrl(TAILSCALE_URL)
+                showLoadingOverlay("Scanning all servers...")
+                discoverAndLoadBestServer(force = true)
             }
         }
 
@@ -393,8 +629,7 @@ class MainActivity : ComponentActivity() {
 
         layout.addView(title)
         layout.addView(errorText)
-        layout.addView(retryBtn)
-        layout.addView(tailscaleBtn)
+        layout.addView(autoScanBtn)
         layout.addView(changeUrlBtn)
         return layout
     }
@@ -430,7 +665,7 @@ class MainActivity : ComponentActivity() {
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         val defaultUa = settings.userAgentString
-        settings.userAgentString = "$defaultUa SmartRemoteMobileAndroid/5.0-Railway"
+        settings.userAgentString = "$defaultUa SmartRemoteMobileAndroid/6.0-AutoServer"
     }
 
     private fun setupWebViewClients() {
@@ -487,8 +722,13 @@ class MainActivity : ComponentActivity() {
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     hideLoadingOverlay()
-                    val failedUrl = request.url?.toString() ?: ""
-                    showConnectionError("Could not connect to:\n$failedUrl\n\nCheck your internet connection or tap below to reconnect.")
+                    // Automatic failover when current server errors out
+                    mainHandler.postDelayed({
+                        if (!isFinishing) {
+                            showLoadingOverlay("Connection lost...\nSwitching to best alternative server...")
+                            discoverAndLoadBestServer(force = true)
+                        }
+                    }, 500)
                 }
             }
         }
@@ -503,27 +743,24 @@ class MainActivity : ComponentActivity() {
             setSingleLine(true)
             setPadding(32, 24, 32, 24)
             setTextColor(Color.BLACK)
-            hint = RAILWAY_URL
+            hint = "https://your-tunnel.trycloudflare.com"
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Server Connection")
-            .setMessage("Railway Cloud Server (Global anywhere, no VPN needed):\n$RAILWAY_URL\n\nOr enter custom Tailscale/Local IP:")
+            .setTitle("Server Configuration")
+            .setMessage("Active server: $activeServerUrl ($activeServerType)\n\nEnter custom server URL or tap Auto-Detect:")
             .setView(input)
             .setPositiveButton("Connect") { _, _ ->
                 val newUrl = input.text.toString().trim()
                 if (newUrl.isNotEmpty()) {
-                    saveUrl(newUrl)
-                    errorLayout.visibility = View.GONE
-                    loadUrl(getServerUrl())
+                    setServerUrl(newUrl)
                 }
             }
-            .setNegativeButton("Cancel", null)
-            .setNeutralButton("Railway Default") { _, _ ->
-                saveUrl(RAILWAY_URL)
-                errorLayout.visibility = View.GONE
-                loadUrl(RAILWAY_URL)
+            .setNeutralButton("⚡ Auto-Detect Best") { _, _ ->
+                showLoadingOverlay("Finding best server...")
+                discoverAndLoadBestServer(force = true)
             }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
@@ -550,6 +787,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        try {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        } catch (_: Exception) {}
         webView.destroy()
         executor.shutdown()
         super.onDestroy()
@@ -560,7 +800,7 @@ class MainActivity : ComponentActivity() {
     // ──────────────────────────────────────────────────────────────────────────
     inner class AndroidAppBridge(private val context: Context) {
         @JavascriptInterface fun isApk(): Boolean = true
-        @JavascriptInterface fun getAppVersion(): String = "5.0-GlobalAccess"
+        @JavascriptInterface fun getAppVersion(): String = "6.0-AutoServer"
 
         @JavascriptInterface
         fun vibrate(durationMs: Long) { triggerVibrate(durationMs) }
@@ -574,6 +814,7 @@ class MainActivity : ComponentActivity() {
         fun openServerSettings() { runOnUiThread { showServerUrlDialog() } }
 
         @JavascriptInterface fun getServerUrl(): String = this@MainActivity.getServerUrl()
+        @JavascriptInterface fun getActiveServerType(): String = this@MainActivity.activeServerType
 
         @JavascriptInterface
         fun setServerUrl(url: String) { this@MainActivity.setServerUrl(url) }
@@ -586,8 +827,8 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun reconnect() {
             runOnUiThread {
-                showLoadingOverlay("Reconnecting...")
-                discoverAndLoad()
+                showLoadingOverlay("Scanning and auto-switching to best server...")
+                discoverAndLoadBestServer(force = true)
             }
         }
 

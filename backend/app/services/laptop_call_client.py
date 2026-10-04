@@ -24,7 +24,7 @@ def play_ringtone(duration_sec=2):
     except Exception as e:
         print(f"[LAPTOP-CALL] Chime notice: {e}")
 
-def open_laptop_call_interface(session_id: str, server_base: str = "https://smart-remote-app-production.up.railway.app"):
+def open_laptop_call_interface(session_id: str, server_base: str = "http://localhost:7070"):
     """Directly opens the full video call interface on the Kali Linux laptop display with camera and mic automatically enabled."""
     global _active_laptop_call_proc
     with _proc_lock:
@@ -92,7 +92,7 @@ def close_laptop_call_interface():
             finally:
                 _active_laptop_call_proc = None
 
-def handle_incoming_call_on_laptop(session_id: str, server_base: str = "https://smart-remote-app-production.up.railway.app"):
+def handle_incoming_call_on_laptop(session_id: str, server_base: str = "http://localhost:7070"):
     """Directly opens video call interface on Kali Linux screen and alerts via speakers — ZERO notifications/requests to click."""
     print(f"[LAPTOP-CALL] 📞 Instant direct video call from mobile! Session ID: {session_id}")
     # 1. Play alert chime
