@@ -913,27 +913,67 @@ class MainActivity : ComponentActivity() {
     // DIALOGS
     // ──────────────────────────────────────────────────────────────────────────
     fun showServerUrlDialog() {
+        val cachedTunnel = getCachedTunnelUrl() ?: ""
+        val options = arrayOf(
+            "⚡ Auto-Detect Best (Fastest Latency)",
+            "🔒 Tailscale Direct P2P ($TAILSCALE_DEFAULT_URL)",
+            if (cachedTunnel.isNotEmpty()) "☁️ Cloudflare Global Tunnel ($cachedTunnel)" else "☁️ Cloudflare Global Tunnel (Auto-Discover)",
+            "📶 Local Wi-Fi ($LOCAL_WIFI_DEFAULT_URL)",
+            "✏️ Enter Custom Server URL..."
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Network & Server Selection")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        showLoadingOverlay("Testing servers & connecting to lowest latency...")
+                        discoverAndLoadBestServer(force = true)
+                    }
+                    1 -> {
+                        setServerUrl(TAILSCALE_DEFAULT_URL)
+                        Toast.makeText(this, "Connected via Tailscale Direct P2P (Lowest Latency)", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        if (cachedTunnel.isNotEmpty()) {
+                            setServerUrl(cachedTunnel)
+                            Toast.makeText(this, "Connected via Cloudflare Global Tunnel", Toast.LENGTH_SHORT).show()
+                        } else {
+                            showLoadingOverlay("Fetching Cloudflare Tunnel URL...")
+                            discoverAndLoadBestServer(force = true)
+                        }
+                    }
+                    3 -> {
+                        setServerUrl(LOCAL_WIFI_DEFAULT_URL)
+                        Toast.makeText(this, "Connected via Local Wi-Fi", Toast.LENGTH_SHORT).show()
+                    }
+                    4 -> {
+                        showCustomUrlInputDialog()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showCustomUrlInputDialog() {
         val input = EditText(this).apply {
             setText(getServerUrl())
             setSingleLine(true)
             setPadding(32, 24, 32, 24)
             setTextColor(Color.BLACK)
-            hint = "https://your-tunnel.trycloudflare.com"
+            hint = "https://example.trycloudflare.com"
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Server Configuration")
-            .setMessage("Active server: $activeServerUrl ($activeServerType)\n\nEnter custom server URL or tap Auto-Detect:")
+            .setTitle("Custom Server URL")
+            .setMessage("Active: $activeServerUrl ($activeServerType)\nEnter IP or Tunnel URL:")
             .setView(input)
             .setPositiveButton("Connect") { _, _ ->
                 val newUrl = input.text.toString().trim()
                 if (newUrl.isNotEmpty()) {
                     setServerUrl(newUrl)
                 }
-            }
-            .setNeutralButton("⚡ Auto-Detect Best") { _, _ ->
-                showLoadingOverlay("Finding best server...")
-                discoverAndLoadBestServer(force = true)
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -1029,6 +1069,33 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface fun getServerUrl(): String = this@MainActivity.getServerUrl()
         @JavascriptInterface fun getActiveServerType(): String = this@MainActivity.activeServerType
+        @JavascriptInterface fun getActiveServerUrl(): String = this@MainActivity.activeServerUrl
+
+        @JavascriptInterface
+        fun switchNetworkMode(mode: String) {
+            runOnUiThread {
+                when (mode.lowercase()) {
+                    "tailscale" -> {
+                        setServerUrl(TAILSCALE_DEFAULT_URL)
+                        Toast.makeText(context, "Switched to Tailscale P2P", Toast.LENGTH_SHORT).show()
+                    }
+                    "local", "wifi" -> {
+                        setServerUrl(LOCAL_WIFI_DEFAULT_URL)
+                        Toast.makeText(context, "Switched to Local Wi-Fi", Toast.LENGTH_SHORT).show()
+                    }
+                    "cloudflare", "tunnel" -> {
+                        val tunnel = getCachedTunnelUrl()
+                        if (!tunnel.isNullOrEmpty()) {
+                            setServerUrl(tunnel)
+                            Toast.makeText(context, "Switched to Cloudflare Tunnel", Toast.LENGTH_SHORT).show()
+                        } else {
+                            discoverAndLoadBestServer(force = true)
+                        }
+                    }
+                    else -> discoverAndLoadBestServer(force = true)
+                }
+            }
+        }
 
         @JavascriptInterface
         fun setServerUrl(url: String) { this@MainActivity.setServerUrl(url) }

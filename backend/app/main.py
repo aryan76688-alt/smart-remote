@@ -21,6 +21,7 @@ from typing import Optional, Tuple
 from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -42,6 +43,9 @@ app = FastAPI(
     description="Kali Linux Mobile & Web Remote Controller - Global Access Anywhere",
     version="2.0.0"
 )
+
+# Compression Middleware (bandwidth saving on slow/mobile internet)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS Middleware
 app.add_middleware(
@@ -197,6 +201,12 @@ async def ws_input(websocket: WebSocket):
         pass
 
 def get_host_mouse_cursor() -> Optional[Tuple[int, int]]:
+    # 1. Ultra-fast in-memory XQueryPointer via input_controller (0.5ms vs 15ms subprocess)
+    coords = input_controller.get_mouse_position()
+    if coords is not None:
+        return coords
+
+    # 2. Fallback to xdotool if X11 pointer query was uninitialized
     env = os.environ.copy()
     if "DISPLAY" not in env or not env["DISPLAY"]:
         env["DISPLAY"] = ":0"
@@ -227,26 +237,30 @@ def get_host_mouse_cursor() -> Optional[Tuple[int, int]]:
 async def ws_screen(websocket: WebSocket):
     await websocket.accept()
     
-    # Send resolution
+    # Send resolution and initial setup
     w, h = screen_streamer.get_resolution()
     init_cursor = get_host_mouse_cursor() or (w // 2, h // 2)
-    await websocket.send_json({
-        "type": "init",
-        "width": w,
-        "height": h,
-        "fps": settings.SCREEN_STREAM_FPS,
-        "quality": settings.SCREEN_STREAM_QUALITY,
-        "cursor": {"x": init_cursor[0], "y": init_cursor[1]}
-    })
-
-    quality = settings.SCREEN_STREAM_QUALITY
-    target_fps = settings.SCREEN_STREAM_FPS
+    
+    # Low-internet default: scale=0.5, quality=35, fps=20 (only ~15-20KB/frame, ~300KB/s)
+    quality = 35
+    target_fps = 20
+    scale: Optional[float] = 0.5
     is_paused = False
     last_sent_cursor: Optional[Tuple[int, int]] = None
     frame_counter = 0
 
+    await websocket.send_json({
+        "type": "init",
+        "width": w,
+        "height": h,
+        "fps": target_fps,
+        "quality": quality,
+        "scale": scale,
+        "cursor": {"x": init_cursor[0], "y": init_cursor[1]}
+    })
+
     async def client_listener():
-        nonlocal quality, target_fps, is_paused
+        nonlocal quality, target_fps, scale, is_paused
         try:
             while True:
                 msg = await websocket.receive_json()
@@ -256,9 +270,36 @@ async def ws_screen(websocket: WebSocket):
                 elif mtype == "resume":
                     is_paused = False
                 elif mtype == "fps":
-                    target_fps = max(5, min(60, int(msg.get("val", 25))))
+                    target_fps = max(5, min(60, int(msg.get("val", 20))))
                 elif mtype == "quality":
-                    quality = max(10, min(95, int(msg.get("val", 50))))
+                    quality = max(10, min(95, int(msg.get("val", 35))))
+                elif mtype == "scale":
+                    try:
+                        s_val = float(msg.get("val", 0.5))
+                        scale = max(0.2, min(1.0, s_val))
+                    except Exception:
+                        pass
+                elif mtype == "preset":
+                    preset = msg.get("preset", "low")
+                    if preset == "low":
+                        scale = 0.45
+                        quality = 28
+                        target_fps = 15
+                    elif preset == "balanced":
+                        scale = 0.65
+                        quality = 45
+                        target_fps = 22
+                    elif preset == "high":
+                        scale = 1.0
+                        quality = 70
+                        target_fps = 30
+                    await websocket.send_json({
+                        "type": "preset_applied",
+                        "preset": preset,
+                        "scale": scale,
+                        "quality": quality,
+                        "fps": target_fps
+                    })
                 elif mtype == "ping":
                     await websocket.send_json({
                         "type": "pong",
@@ -277,13 +318,13 @@ async def ws_screen(websocket: WebSocket):
                 continue
 
             start_t = time.time()
-            frame_bytes = screen_streamer.capture_frame_jpeg(quality=quality)
+            frame_bytes = screen_streamer.capture_frame_jpeg(quality=quality, scale=scale)
             if frame_bytes:
                 await websocket.send_bytes(frame_bytes)
 
-            # Send host mouse cursor position every 4 frames or when position changes
+            # Send host mouse cursor position every 2 frames or when position changes
             frame_counter += 1
-            if frame_counter % 3 == 0:
+            if frame_counter % 2 == 0:
                 coords = get_host_mouse_cursor()
                 if coords and coords != last_sent_cursor:
                     last_sent_cursor = coords

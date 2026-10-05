@@ -13,7 +13,7 @@ import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 
 export const ScreenMirrorView: React.FC = () => {
-  const { latencyMs, sendInput } = useWebSocket();
+  const { latencyMs, sendInput, networkType, networkLabel, bandwidthMode, setBandwidthMode } = useWebSocket();
   const {
     addNotification,
     deviceMode,
@@ -509,11 +509,30 @@ export const ScreenMirrorView: React.FC = () => {
     addNotification('CCTV Audio', next ? 'Live Microphone Audio: UNMUTED' : 'Live Microphone Audio: MUTED', 'info');
   };
 
+  // Bandwidth & Streaming Presets (Optimized for Weak Mobile Internet & Low Latency)
+  const applyBandwidthPreset = (mode: 'low' | 'balanced' | 'high') => {
+    setBandwidthMode(mode);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'preset', preset: mode }));
+    }
+    const label = mode === 'low' 
+      ? '⚡ Low Internet (0.45x, 15 FPS, Fast)' 
+      : mode === 'balanced' 
+      ? '⚖️ Balanced (0.65x, 22 FPS)' 
+      : '💎 High Quality (1.0x, 30 FPS)';
+    addNotification('Stream Preset', label, 'info');
+  };
+
   // WebSocket Screen Streaming
   useEffect(() => {
     const ws = new WebSocket(getWsUrl());
     wsRef.current = ws;
     ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      // Send active bandwidth preset immediately on connection
+      ws.send(JSON.stringify({ type: 'preset', preset: bandwidthMode }));
+    };
 
     ws.onmessage = (evt) => {
       if (typeof evt.data === 'string') {
@@ -521,9 +540,14 @@ export const ScreenMirrorView: React.FC = () => {
           const data = JSON.parse(evt.data);
           if (data.type === 'init') {
             setResolution({ width: data.width, height: data.height });
+            if (data.fps) setStreamFps(data.fps);
+            if (data.quality) setStreamQuality(data.quality);
             if (data.cursor) {
               setCursorPos({ x: data.cursor.x, y: data.cursor.y });
             }
+          } else if (data.type === 'preset_applied') {
+            if (data.fps) setStreamFps(data.fps);
+            if (data.quality) setStreamQuality(data.quality);
           } else if (data.type === 'cursor') {
             setCursorPos({ x: data.x, y: data.y });
           }
@@ -939,10 +963,23 @@ export const ScreenMirrorView: React.FC = () => {
         {/* Connection Telemetry Badge */}
         <div className="pointer-events-auto flex items-center gap-1.5 bg-slate-950/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-800 text-slate-300 font-mono text-[10px] shadow-lg whitespace-nowrap shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-bold text-emerald-400 hidden xs:inline">LIVE</span>
+          <span className="font-bold text-emerald-400 hidden xs:inline" title={networkLabel}>
+            {networkType === 'tailscale' ? '🔒 TAILSCALE' : networkType === 'cloudflare' ? '☁️ WAN' : '📶 WI-FI'}
+          </span>
           <span className="text-slate-400">{latencyMs}ms</span>
           <span className="text-slate-600">•</span>
           <span className="text-cyan-400 font-bold whitespace-nowrap">{currentFps} FPS</span>
+          <span className="text-slate-600">•</span>
+          <button
+            onClick={() => {
+              const nextMode = bandwidthMode === 'low' ? 'balanced' : bandwidthMode === 'balanced' ? 'high' : 'low';
+              applyBandwidthPreset(nextMode);
+            }}
+            className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 hover:bg-slate-700 transition-colors"
+            title="Click to cycle Bandwidth Mode (Low Internet / Balanced / High)"
+          >
+            {bandwidthMode === 'low' ? '⚡ LOW NET' : bandwidthMode === 'balanced' ? '⚖️ BALANCED' : '💎 HIGH'}
+          </button>
         </div>
 
         {/* Action Controls Group: Compact Viewer Tools */}
@@ -2076,46 +2113,34 @@ export const ScreenMirrorView: React.FC = () => {
               <span className="text-[11px] text-slate-400 font-semibold">Network Adaptive Presets:</span>
               <div className="grid grid-cols-3 gap-1.5 pt-0.5">
                 <button
-                  onClick={() => {
-                    handleChangeFps(15);
-                    handleChangeQuality(35);
-                    addNotification('Data Saver', 'Activated Cellular Data Saver (15 FPS, 35% Q)', 'info');
-                  }}
+                  onClick={() => applyBandwidthPreset('low')}
                   className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-                    streamFps === 15 && streamQuality === 35
+                    bandwidthMode === 'low'
                       ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm shadow-emerald-500/30'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                   }`}
                 >
-                  Cellular (4G/5G)
+                  ⚡ Low Internet (Fast)
                 </button>
                 <button
-                  onClick={() => {
-                    handleChangeFps(25);
-                    handleChangeQuality(55);
-                    addNotification('Balanced', 'Activated Balanced Stream (25 FPS, 55% Q)', 'info');
-                  }}
+                  onClick={() => applyBandwidthPreset('balanced')}
                   className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-                    streamFps === 25 && streamQuality === 55
+                    bandwidthMode === 'balanced'
                       ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm shadow-cyan-500/30'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                   }`}
                 >
-                  Balanced
+                  ⚖️ Balanced (4G)
                 </button>
                 <button
-                  onClick={() => {
-                    handleChangeFps(40);
-                    handleChangeQuality(80);
-                    addNotification('Ultra Quality', 'Activated Ultra Quality (40 FPS, 80% Q)', 'info');
-                  }}
+                  onClick={() => applyBandwidthPreset('high')}
                   className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-                    streamFps === 40 && streamQuality === 80
+                    bandwidthMode === 'high'
                       ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm shadow-amber-500/30'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                   }`}
                 >
-                  Ultra (Wi-Fi)
+                  💎 High Quality
                 </button>
               </div>
             </div>
