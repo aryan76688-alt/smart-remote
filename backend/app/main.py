@@ -68,8 +68,9 @@ def get_current_server_json():
     tunnel_status = tunnel_manager.get_status()
     public_url = tunnel_status.get("public_url") or ""
     return {
-        "cloudflare_url": public_url,
+        "primary_priority": "tailscale",
         "tailscale_url": f"http://{settings.TAILSCALE_IP}:{settings.PORT}",
+        "cloudflare_url": public_url,
         "local_wifi_url": f"http://{info.local_ip}:{settings.PORT}",
         "tunnel_status": tunnel_status.get("status", "stopped"),
         "active_provider": tunnel_status.get("active_provider", "none"),

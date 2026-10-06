@@ -72,8 +72,9 @@ class MainActivity : ComponentActivity() {
     private val LOCAL_WIFI_DEFAULT_URL = "http://192.168.31.141:7070"
     private val GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/aryan76688-alt/smart-remote/main/current_server.json"
 
-    private var activeServerUrl: String = ""
-    private var activeServerType: String = "auto"
+    // First server priority: Tailscale IP
+    private var activeServerUrl: String = TAILSCALE_DEFAULT_URL
+    private var activeServerType: String = "tailscale"
     private var lastBackPressTime: Long = 0
     var defaultStatusBarHeight: Int = 0
     var isFullscreenMode: Boolean = false
@@ -265,13 +266,23 @@ class MainActivity : ComponentActivity() {
             try {
                 val candidateList = mutableListOf<ServerCandidate>()
 
-                // 1. Local Wi-Fi (Primary LAN candidate, ultra low latency 60fps)
+                // 1. Tailscale IP (ABSOLUTE 1ST PRIORITY - Direct Encrypted WireGuard P2P)
+                candidateList.add(
+                    ServerCandidate(
+                        id = "tailscale",
+                        name = "Tailscale IP (1st Priority)",
+                        url = TAILSCALE_DEFAULT_URL,
+                        priorityBonusMs = -500L
+                    )
+                )
+
+                // 2. Local Wi-Fi (Secondary LAN candidate)
                 candidateList.add(
                     ServerCandidate(
                         id = "local",
                         name = "Local Wi-Fi",
                         url = LOCAL_WIFI_DEFAULT_URL,
-                        priorityBonusMs = -150L
+                        priorityBonusMs = -100L
                     )
                 )
 
@@ -291,23 +302,13 @@ class MainActivity : ComponentActivity() {
                                         id = "local_dyn",
                                         name = "Local Subnet ($subnet.141)",
                                         url = dynamicCandidate,
-                                        priorityBonusMs = -140L
+                                        priorityBonusMs = -90L
                                     )
                                 )
                             }
                         }
                     }
                 } catch (_: Exception) {}
-
-                // 2. Tailscale VPN
-                candidateList.add(
-                    ServerCandidate(
-                        id = "tailscale",
-                        name = "Tailscale VPN",
-                        url = TAILSCALE_DEFAULT_URL,
-                        priorityBonusMs = -60L
-                    )
-                )
 
                 // 3. User Custom URL if configured
                 val customUrl = getCustomUrl()
@@ -374,19 +375,19 @@ class MainActivity : ComponentActivity() {
                     executor.execute {
                         val probe = probeCandidate(cand)
                         results.add(probe)
-                        // If Local Wi-Fi is reachable and blazing fast (<120ms), instant win!
-                        if (probe.isAlive && probe.candidate.id.startsWith("local") && probe.latencyMs < 120) {
+                        // Tailscale 1st Priority: If Tailscale responds and is alive, instant win!
+                        if (probe.isAlive && probe.candidate.id == "tailscale") {
                             fastWinnerFound.set(true)
                         }
                         latch.countDown()
                     }
                 }
 
-                // Wait for all candidates or fast local winner
+                // Wait for all candidates or fast Tailscale winner
                 if (fastWinnerFound.get()) {
-                    latch.await(300, TimeUnit.MILLISECONDS)
+                    latch.await(200, TimeUnit.MILLISECONDS)
                 } else {
-                    latch.await(2400, TimeUnit.MILLISECONDS)
+                    latch.await(2000, TimeUnit.MILLISECONDS)
                 }
 
                 // Filter alive servers and score them
@@ -399,7 +400,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val best = aliveResults.minByOrNull { it.latencyMs + it.candidate.priorityBonusMs }
+                // ABSOLUTE 1ST PRIORITY: If Tailscale is reachable, ALWAYS select Tailscale!
+                val tailscaleWinner = aliveResults.firstOrNull { it.candidate.id == "tailscale" }
+                val best = tailscaleWinner ?: aliveResults.minByOrNull { it.latencyMs + it.candidate.priorityBonusMs }
 
                 mainHandler.post {
                     isDiscovering.set(false)
@@ -411,8 +414,8 @@ class MainActivity : ComponentActivity() {
                         loadUrl(chosenCandidate.url)
 
                         val badge = when {
+                            chosenCandidate.id == "tailscale" -> "🔒 Tailscale (1st Priority)"
                             chosenCandidate.id.startsWith("local") -> "⚡ Local Wi-Fi"
-                            chosenCandidate.id == "tailscale" -> "🔒 Tailscale"
                             chosenCandidate.id.startsWith("cloudflare") -> "🌐 Cloudflare Tunnel"
                             else -> "🚀 ${chosenCandidate.name}"
                         }
@@ -422,15 +425,15 @@ class MainActivity : ComponentActivity() {
                             Toast.LENGTH_SHORT
                         ).show()
                     } else {
-                        // All probes timed out; attempt fallback to cached URL or show connection error
-                        val fallback = getSavedUrl() ?: getCachedTunnelUrl() ?: TAILSCALE_DEFAULT_URL
+                        // All probes timed out; attempt fallback to Tailscale first, then saved or tunnel
+                        val fallback = TAILSCALE_DEFAULT_URL
                         if (activeServerUrl.isEmpty()) {
                             loadUrl(fallback)
                         } else {
                             showConnectionError(
                                 "No active servers responded.\n\n" +
+                                "• 1st Priority: Tailscale ($TAILSCALE_DEFAULT_URL)\n" +
                                 "• Local Wi-Fi (192.168.31.141)\n" +
-                                "• Tailscale (100.69.194.11)\n" +
                                 "• Cloudflare Tunnel\n\n" +
                                 "Tap RETRY to scan again or enter a custom server URL."
                             )
@@ -441,7 +444,7 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 mainHandler.post {
                     isDiscovering.set(false)
-                    val fallback = getSavedUrl() ?: TAILSCALE_DEFAULT_URL
+                    val fallback = TAILSCALE_DEFAULT_URL
                     loadUrl(fallback)
                 }
             }
@@ -915,8 +918,8 @@ class MainActivity : ComponentActivity() {
     fun showServerUrlDialog() {
         val cachedTunnel = getCachedTunnelUrl() ?: ""
         val options = arrayOf(
-            "⚡ Auto-Detect Best (Fastest Latency)",
-            "🔒 Tailscale Direct P2P ($TAILSCALE_DEFAULT_URL)",
+            "🔒 Tailscale IP ($TAILSCALE_DEFAULT_URL) [1ST PRIORITY]",
+            "⚡ Auto-Detect Best (Probe All Servers)",
             if (cachedTunnel.isNotEmpty()) "☁️ Cloudflare Global Tunnel ($cachedTunnel)" else "☁️ Cloudflare Global Tunnel (Auto-Discover)",
             "📶 Local Wi-Fi ($LOCAL_WIFI_DEFAULT_URL)",
             "✏️ Enter Custom Server URL..."
@@ -927,12 +930,12 @@ class MainActivity : ComponentActivity() {
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
-                        showLoadingOverlay("Testing servers & connecting to lowest latency...")
-                        discoverAndLoadBestServer(force = true)
+                        setServerUrl(TAILSCALE_DEFAULT_URL)
+                        Toast.makeText(this, "Connected via Tailscale Direct P2P (1st Priority)", Toast.LENGTH_SHORT).show()
                     }
                     1 -> {
-                        setServerUrl(TAILSCALE_DEFAULT_URL)
-                        Toast.makeText(this, "Connected via Tailscale Direct P2P (Lowest Latency)", Toast.LENGTH_SHORT).show()
+                        showLoadingOverlay("Testing servers & connecting to lowest latency...")
+                        discoverAndLoadBestServer(force = true)
                     }
                     2 -> {
                         if (cachedTunnel.isNotEmpty()) {
