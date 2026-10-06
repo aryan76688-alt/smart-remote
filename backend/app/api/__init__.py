@@ -14,6 +14,11 @@ from app.api.camera import router as camera_router
 from app.api.videocall import router as videocall_router
 from app.api.productivity import router as productivity_router
 from app.api.n8n import router as n8n_router
+from app.api.cyber import cyber_router
+from app.api.devops import devops_router
+from app.api.multimedia import router as multimedia_router
+from app.api.security import router as security_router
+from app.api.clipboard import router as clipboard_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(system_router)
@@ -31,4 +36,9 @@ api_router.include_router(camera_router)
 api_router.include_router(videocall_router)
 api_router.include_router(productivity_router)
 api_router.include_router(n8n_router)
+api_router.include_router(cyber_router)
+api_router.include_router(devops_router)
+api_router.include_router(multimedia_router)
+api_router.include_router(security_router)
+api_router.include_router(clipboard_router)
 

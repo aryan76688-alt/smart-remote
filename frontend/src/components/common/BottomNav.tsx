@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Gamepad2, Video, Monitor, MoreHorizontal,
   Terminal, Folder, Cpu, Bot, Tv, Server, History, Settings, X, Smartphone,
-  PhoneCall, Workflow
+  PhoneCall, Workflow, ShieldAlert, Boxes
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useCall } from '../../context/CallContext';
@@ -51,12 +51,14 @@ export const BottomNav: React.FC = () => {
   ];
 
   const moreItems = [
+    { label: 'Cyber Cockpit', icon: ShieldAlert, route: '/cyber' },
+    { label: 'DevOps & Containers', icon: Boxes, route: '/devops' },
+    { label: 'Media & Clicker', icon: Tv, route: '/media' },
     { label: 'n8n Workflows', icon: Workflow, route: '/n8n' },
     { label: 'Terminal', icon: Terminal, route: '/terminal' },
     { label: 'File Manager', icon: Folder, route: '/files' },
     { label: 'System Control', icon: Cpu, route: '/system' },
     { label: 'AI Assistant', icon: Bot, route: '/assistant' },
-    { label: 'Media Remote', icon: Tv, route: '/media' },
     { label: 'Devices', icon: Server, route: '/devices' },
     { label: 'Activity Log', icon: History, route: '/history' },
     { label: 'Settings', icon: Settings, route: '/settings' },

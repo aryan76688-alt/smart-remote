@@ -466,10 +466,13 @@ export const api = {
   }>>('/api/camera/cctv/intercom-history'),
 
   // ── Productivity & Smart Tools ──────────────────────────────────────────
-  getClipboard: () => request<{ success: boolean; text: string; length: number }>('/api/productivity/clipboard'),
-  setClipboard: (text: string) => request<{ success: boolean; message: string }>('/api/productivity/clipboard', {
+  getClipboard: () => request<{ success: boolean; text: string; length: number }>('/api/clipboard'),
+  setClipboard: (text: string, type_immediately: boolean = false) => request<{ success: boolean; length?: number; message?: string; typed?: boolean }>('/api/clipboard', {
     method: 'POST',
-    body: JSON.stringify({ text })
+    body: JSON.stringify({ text, type_immediately })
+  }),
+  clearClipboard: () => request<{ success: boolean; message: string }>('/api/clipboard/clear', {
+    method: 'POST'
   }),
   quickDropFile: async (file: File): Promise<{ success: boolean; filename: string; saved_path: string; size_bytes: number }> => {
     const formData = new FormData();
@@ -542,6 +545,76 @@ export const api = {
   executeN8nAction: (payload: { action: string; params?: any }) => request<any>('/api/n8n/action', {
     method: 'POST',
     body: JSON.stringify(payload)
+  }),
+
+  // ── Cyber & Pentesting Cockpit ──────────────────────────────────────────
+  getNetworkRadar: () => request<{ success: boolean; count: number; connections: any[] }>('/api/cyber/radar'),
+  killSocket: (pid: number, signal: number = 9) => request<{ success: boolean; message: string }>('/api/cyber/radar/kill', {
+    method: 'POST',
+    body: JSON.stringify({ pid, signal })
+  }),
+  getTorStatus: () => request<{ tor_running: boolean; socks_open: boolean; public_ip: string; status: string }>('/api/cyber/tor/status'),
+  renewTorCircuit: () => request<{ success: boolean; message: string; new_ip?: string }>('/api/cyber/tor/renew', {
+    method: 'POST'
+  }),
+  generatePayload: (payload_type: string, lhost: string = '100.69.194.11', lport: number = 4444) => request<{ payload_type: string; lhost: string; lport: number; command: string }>('/api/cyber/payload/generate', {
+    method: 'POST',
+    body: JSON.stringify({ payload_type, lhost, lport })
+  }),
+  togglePayloadStager: (action: 'start' | 'stop', port: number = 8888, payload_text?: string) => request<{ running: boolean; port: number; url?: string }>('/api/cyber/payload/stager/toggle', {
+    method: 'POST',
+    body: JSON.stringify({ action, port, payload_text })
+  }),
+  scanWifi: () => request<{ success: boolean; count: number; networks: any[] }>('/api/cyber/wifi/scan'),
+  getCyberListeners: () => request<{ listeners: any[] }>('/api/cyber/listeners'),
+
+  // ── DevOps & Sysadmin Command Deck ───────────────────────────────────────
+  getContainers: () => request<{ runtime: string; containers: any[] }>('/api/devops/containers'),
+  containerAction: (id: string, action: 'start' | 'stop' | 'restart') => request<{ success: boolean; message: string }>('/api/devops/containers/action', {
+    method: 'POST',
+    body: JSON.stringify({ id, action })
+  }),
+  getContainerLogs: (id: string, tail: number = 100) => request<{ id: string; logs: string }>(`/api/devops/containers/logs?id=${id}&tail=${tail}`),
+  getServices: () => request<{ success: boolean; services: any[] }>('/api/devops/services'),
+  serviceAction: (service: string, action: 'start' | 'stop' | 'restart', is_user: boolean = false) => request<{ success: boolean; message: string }>('/api/devops/services/action', {
+    method: 'POST',
+    body: JSON.stringify({ service, action, is_user })
+  }),
+  getGitStatus: () => request<{ success: boolean; branch: string; modified: number; untracked: number; commits: any[]; error?: string }>('/api/devops/git'),
+  cleanSystem: (target: 'all' | 'apt' | 'journal' | 'containers' = 'all') => request<{ success: boolean; details: any }>('/api/devops/clean', {
+    method: 'POST',
+    body: JSON.stringify({ target })
+  }),
+
+  // ── Multimedia & Audio ───────────────────────────────────────────────────
+  getMediaStatus: () => request<{ status: string; title: string; artist: string; album: string; player: string; volume: number; muted: boolean }>('/api/media/player'),
+  sendMediaAction: (action: string) => request<{ success: boolean; action: string }>('/api/media/action', {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  }),
+  speakTts: (text: string, rate: number = 0, pitch: number = 0) => request<{ success: boolean; message: string }>('/api/media/tts', {
+    method: 'POST',
+    body: JSON.stringify({ text, rate, pitch })
+  }),
+  playSoundboard: (sound: string) => request<{ success: boolean; sound: string }>('/api/media/soundboard', {
+    method: 'POST',
+    body: JSON.stringify({ sound })
+  }),
+
+  // ── Security & Anti-Tamper ───────────────────────────────────────────────
+  getTamperStatus: () => request<{ tampered: boolean; ac_power_online: boolean; lid_state: string; battery_level: number; battery_status: string; alert: string }>('/api/security/tamper'),
+  toggleStealth: (enabled: boolean) => request<{ success: boolean; stealth: boolean; message: string }>('/api/security/stealth', {
+    method: 'POST',
+    body: JSON.stringify({ enabled })
+  }),
+  triggerPanic: (options: { lock_screen?: boolean; mute_audio?: boolean; blank_screen?: boolean; minimize_windows?: boolean } = {}) => request<{ success: boolean; status: string; details: any }>('/api/security/panic', {
+    method: 'POST',
+    body: JSON.stringify({
+      lock_screen: options.lock_screen ?? true,
+      mute_audio: options.mute_audio ?? true,
+      blank_screen: options.blank_screen ?? true,
+      minimize_windows: options.minimize_windows ?? true
+    })
   })
 };
 

@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var powerReceiver: android.content.BroadcastReceiver? = null
 
     data class ServerCandidate(
         val id: String,
@@ -209,6 +210,7 @@ class MainActivity : ComponentActivity() {
 
         setupBackPressHandler()
         setupNetworkAutoFailover()
+        setupPowerReceiver()
 
         // Kick off smart best server discovery
         showLoadingOverlay("Finding best server & measuring latency...")
@@ -1043,9 +1045,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun setupPowerReceiver() {
+        try {
+            val filter = android.content.IntentFilter().apply {
+                addAction(Intent.ACTION_POWER_CONNECTED)
+                addAction(Intent.ACTION_POWER_DISCONNECTED)
+            }
+            powerReceiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    val isConnected = intent?.action == Intent.ACTION_POWER_CONNECTED
+                    webView.evaluateJavascript("window.onPhonePowerChanged && window.onPhonePowerChanged($isConnected);", null)
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(powerReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(powerReceiver, filter)
+            }
+        } catch (_: Exception) {}
+    }
+
     override fun onDestroy() {
         try {
             networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        } catch (_: Exception) {}
+        try {
+            powerReceiver?.let { unregisterReceiver(it) }
         } catch (_: Exception) {}
         webView.destroy()
         executor.shutdown()
@@ -1195,6 +1220,62 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun getStorageDirectory(): String {
             return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
+        }
+
+        @JavascriptInterface
+        fun getClipboardText(): String {
+            return try {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                clipboard?.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            } catch (_: Exception) {
+                ""
+            }
+        }
+
+        @JavascriptInterface
+        fun setClipboardText(text: String) {
+            runOnUiThread {
+                try {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("SmartRemote", text)
+                    clipboard?.setPrimaryClip(clip)
+                } catch (_: Exception) {}
+            }
+        }
+
+        @JavascriptInterface
+        fun authenticateBiometric(promptTitle: String) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                runOnUiThread {
+                    try {
+                        val executor = ContextCompat.getMainExecutor(context)
+                        val prompt = android.hardware.biometrics.BiometricPrompt.Builder(context)
+                            .setTitle(if (promptTitle.isNotEmpty()) promptTitle else "Authenticate to Kali")
+                            .setNegativeButton("Cancel", executor) { _, _ ->
+                                webView.evaluateJavascript("window.onBiometricResult && window.onBiometricResult(false, 'Cancelled');", null)
+                            }
+                            .build()
+                        prompt.authenticate(
+                            android.os.CancellationSignal(),
+                            executor,
+                            object : android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                                override fun onAuthenticationSucceeded(result: android.hardware.biometrics.BiometricPrompt.AuthenticationResult?) {
+                                    super.onAuthenticationSucceeded(result)
+                                    webView.evaluateJavascript("window.onBiometricResult && window.onBiometricResult(true, 'Success');", null)
+                                }
+                                override fun onAuthenticationFailed() {
+                                    super.onAuthenticationFailed()
+                                    webView.evaluateJavascript("window.onBiometricResult && window.onBiometricResult(false, 'Failed');", null)
+                                }
+                            }
+                        )
+                    } catch (e: Exception) {
+                        webView.evaluateJavascript("window.onBiometricResult && window.onBiometricResult(false, '${e.message}');", null)
+                    }
+                }
+            } else {
+                webView.evaluateJavascript("window.onBiometricResult && window.onBiometricResult(true, 'Bypassed (API < 28)');", null)
+            }
         }
     }
 }
