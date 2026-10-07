@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://hunting-want-pulse-strength.trycloudflare.com",
+  "cloudflare_url": "https://optical-conclusion-ram-baseline.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
-  "local_wifi_url": "http://192.168.31.141:7070",
+  "local_wifi_url": "http://192.168.1.18:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-06T09:14:39.867501",
-  "timestamp": 1791278079
+  "updated_at": "2026-10-07T03:33:33.357478",
+  "timestamp": 1791344013
 }
