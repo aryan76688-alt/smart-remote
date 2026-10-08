@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://optical-conclusion-ram-baseline.trycloudflare.com",
+  "cloudflare_url": "https://engaged-federal-hometown-class.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.1.18:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-07T03:33:33.357478",
-  "timestamp": 1791344013
+  "updated_at": "2026-10-08T03:30:12.656467",
+  "timestamp": 1791430212
 }
