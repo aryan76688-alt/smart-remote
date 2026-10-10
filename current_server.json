@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://build-athletics-types-highland.trycloudflare.com",
+  "cloudflare_url": "https://gardens-element-persistent-manager.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
-  "local_wifi_url": "http://192.168.42.22:7070",
+  "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-09T08:25:52.772888",
-  "timestamp": 1791534352
+  "updated_at": "2026-10-10T04:51:24.068200",
+  "timestamp": 1791607884
 }
