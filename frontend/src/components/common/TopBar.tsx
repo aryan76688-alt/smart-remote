@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import {
   Terminal, Wifi, Bell, Mic, MicOff, Maximize, Minimize,
   Settings, Smartphone, Monitor, ShieldAlert, X,
-  Unlock, Radio, Server, LogOut, Sun, Moon, MoreVertical, Globe, Video
+  Unlock, Radio, Server, LogOut, Sun, Moon, MoreVertical, Globe, Video, Zap
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useVoice } from '../../context/VoiceContext';
 import { useCall } from '../../context/CallContext';
+import { useOfflineQueue } from '../../context/OfflineQueueContext';
 import { api } from '../../services/api';
 import { GlobalAccessModal } from './GlobalAccessModal';
 import { AppLogo } from './AppLogo';
@@ -31,6 +32,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     startListening, stopListening, voiceState
   } = useVoice();
   const { startCall, callState } = useCall();
+  const { queuedActions, flushQueue } = useOfflineQueue();
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showWarning, setShowWarning] = useState<boolean>(false);
   const [unlocking, setUnlocking] = useState<boolean>(false);
@@ -163,6 +165,18 @@ export const TopBar: React.FC<TopBarProps> = ({
               <Smartphone className="w-3 h-3 text-cyan-400" />
               <span>APK</span>
             </a>
+          )}
+
+          {/* Offline Actions Queued Pill */}
+          {queuedActions.length > 0 && (
+            <button
+              onClick={() => flushQueue()}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 font-mono text-[9px] font-bold active:scale-95 ml-1 animate-pulse"
+              title="Actions queued offline. Tap to sync now."
+            >
+              <Zap className="w-3 h-3 text-amber-400" />
+              <span>{queuedActions.length} QUEUED</span>
+            </button>
           )}
         </div>
 

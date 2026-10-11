@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { OfflineQueueProvider, useOfflineQueue } from './context/OfflineQueueContext';
 import { WebSocketProvider } from './context/WebSocketContext';
 import { VoiceProvider } from './context/VoiceContext';
 import { CallProvider } from './context/CallContext';
@@ -35,6 +36,7 @@ import { CallPage } from './pages/CallPage';
 import { N8nPage } from './pages/N8nPage';
 import { CyberPage } from './pages/CyberPage';
 import { DevOpsPage } from './pages/DevOpsPage';
+import { DecoyPage } from './pages/DecoyPage';
 
 const AppContent: React.FC = () => {
   const {
@@ -136,6 +138,14 @@ const AppContent: React.FC = () => {
     (new URLSearchParams(window.location.search)).get('role') === 'laptop'
   )) {
     return <LaptopCallPage />;
+  }
+
+  // Honeypot Decoy OS Update Screen
+  if (typeof window !== 'undefined' && (
+    window.location.pathname.includes('/decoy') ||
+    window.location.search.includes('decoy')
+  )) {
+    return <DecoyPage />;
   }
 
   // PAGE 1: Login Page with ARYAN / Aryan@2007
@@ -284,13 +294,15 @@ export const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <AppProvider>
-        <WebSocketProvider>
-          <VoiceProvider>
-            <CallProvider>
-              <AppContent />
-            </CallProvider>
-          </VoiceProvider>
-        </WebSocketProvider>
+        <OfflineQueueProvider>
+          <WebSocketProvider>
+            <VoiceProvider>
+              <CallProvider>
+                <AppContent />
+              </CallProvider>
+            </VoiceProvider>
+          </WebSocketProvider>
+        </OfflineQueueProvider>
       </AppProvider>
     </ErrorBoundary>
   );

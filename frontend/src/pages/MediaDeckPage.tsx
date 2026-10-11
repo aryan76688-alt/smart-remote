@@ -2,12 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Tv, Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Mic,
   Bell, AlertTriangle, Info, Camera, MessageSquare, Radio, Presentation,
-  Maximize, Minimize, RefreshCw, Volume1
+  Maximize, Minimize, RefreshCw, Volume1, Zap
 } from 'lucide-react';
 import { api } from '../services/api';
+import { StreamDeck } from '../components/productivity/StreamDeck';
+import { ScreenVisionModal } from '../components/productivity/ScreenVisionModal';
 
 export const MediaDeckPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'player' | 'clicker' | 'tts' | 'audio_stream'>('player');
+  const [activeTab, setActiveTab] = useState<'streamdeck' | 'player' | 'clicker' | 'tts' | 'audio_stream'>('streamdeck');
+  const [visionOpen, setVisionOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Media Player State
@@ -139,8 +142,9 @@ export const MediaDeckPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-4 gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-800">
+      <div className="grid grid-cols-5 gap-1 bg-slate-950/60 p-1.5 rounded-xl border border-slate-800">
         {[
+          { id: 'streamdeck', label: 'DECK', icon: Zap },
           { id: 'player', label: 'PLAYER', icon: Tv },
           { id: 'clicker', label: 'CLICKER', icon: Presentation },
           { id: 'tts', label: 'SOUND/TTS', icon: Mic },
@@ -159,11 +163,16 @@ export const MediaDeckPage: React.FC = () => {
               }`}
             >
               <Icon className="w-4 h-4 mb-1" />
-              <span className="text-[10px]">{tab.label}</span>
+              <span className="text-[9px] font-mono">{tab.label}</span>
             </button>
           );
         })}
       </div>
+
+      {/* ── TAB 0: STREAM DECK & MACRO MATRIX ── */}
+      {activeTab === 'streamdeck' && (
+        <StreamDeck onOpenVision={() => setVisionOpen(true)} />
+      )}
 
       {/* ── TAB 1: UNIVERSAL MEDIA CONTROLLER ── */}
       {activeTab === 'player' && (
@@ -394,6 +403,9 @@ export const MediaDeckPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Screen Vision Co-Pilot Modal */}
+      <ScreenVisionModal isOpen={visionOpen} onClose={() => setVisionOpen(false)} />
     </div>
   );
 };

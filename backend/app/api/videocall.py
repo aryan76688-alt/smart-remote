@@ -28,29 +28,46 @@ class CallManager:
         }
         print(f"[CALL-WS] Client connected: {role} ({device_id}), total clients: {len(self.active_connections)}")
 
-        # If a call is currently ringing/active and this client matches the target role, replay call invite & offer
+        # If a call is currently ringing/active and this client matches target or caller role, replay call invite, offer, answer, and candidates
         if self.current_call and self.current_call.get("status") in ("ringing", "connected"):
+            sid = self.current_call["session_id"]
             if self.current_call.get("target_role") == role:
                 print(f"[CALL-WS] Replaying active call invitation to newly joined {role}")
                 try:
                     await ws.send_text(json.dumps({
                         "type": "incoming_call",
-                        "session_id": self.current_call["session_id"],
+                        "session_id": sid,
                         "caller_role": self.current_call["caller_role"],
                         "timestamp": self.current_call.get("started_at", datetime.utcnow().isoformat())
                     }))
-                    # If offer already generated, deliver it
                     if "last_offer" in self.current_call:
                         await ws.send_text(json.dumps(self.current_call["last_offer"]))
                 except Exception as e:
                     print(f"[CALL-WS] Error notifying new client: {e}")
+
+            elif self.current_call.get("caller_role") == role and "last_answer" in self.current_call:
+                try:
+                    await ws.send_text(json.dumps(self.current_call["last_answer"]))
+                except Exception as e:
+                    print(f"[CALL-WS] Error replaying answer to caller: {e}")
+
+            # Replay all buffered ICE candidates destined for this role
+            cand_key = f"candidates_for_{role}"
+            buffered_cands = self.current_call.get(cand_key, [])
+            for c_msg in buffered_cands:
+                try:
+                    await ws.send_text(json.dumps(c_msg))
+                except Exception:
+                    pass
+            if buffered_cands:
+                print(f"[CALL-WS] Replayed {len(buffered_cands)} buffered ICE candidates to {role}")
 
             # Notify the other peer that target has joined and is ready for WebRTC handshake!
             peer_role = "mobile" if role == "laptop" else "laptop"
             await self.broadcast_to_role(peer_role, {
                 "type": "peer_joined",
                 "role": role,
-                "session_id": self.current_call["session_id"]
+                "session_id": sid
             }, sender_conn_id=conn_id)
 
         return conn_id
@@ -93,7 +110,9 @@ class CallManager:
                 "target_role": target_role,
                 "caller_id": conn_id,
                 "status": "ringing",
-                "started_at": datetime.utcnow().isoformat()
+                "started_at": datetime.utcnow().isoformat(),
+                "candidates_for_laptop": [],
+                "candidates_for_mobile": []
             }
 
             # Save in database
@@ -238,9 +257,18 @@ class CallManager:
             target_role = "laptop" if caller_role == "mobile" else "mobile"
             await self.broadcast_to_role(target_role, data, sender_conn_id=conn_id)
 
-        elif msg_type in ("webrtc_answer", "ice_candidate"):
-            # Relay WebRTC signaling payload directly to peer
+        elif msg_type == "webrtc_answer":
+            if self.current_call:
+                self.current_call["last_answer"] = data
             target_role = "laptop" if caller_role == "mobile" else "mobile"
+            await self.broadcast_to_role(target_role, data, sender_conn_id=conn_id)
+
+        elif msg_type == "ice_candidate":
+            target_role = "laptop" if caller_role == "mobile" else "mobile"
+            if self.current_call:
+                cand_list = self.current_call.setdefault(f"candidates_for_{target_role}", [])
+                cand_list.append(data)
+            # Relay WebRTC candidate directly to peer
             await self.broadcast_to_role(target_role, data, sender_conn_id=conn_id)
 
 call_manager = CallManager()
@@ -269,6 +297,19 @@ async def direct_start_call(request: Request):
     except Exception:
         body = {}
     session_id = body.get("session_id") or str(uuid.uuid4())[:8]
+
+    # Initialize current_call right away so ICE candidates and offer are buffered immediately
+    if not call_manager.current_call or call_manager.current_call.get("session_id") != session_id:
+        call_manager.current_call = {
+            "session_id": session_id,
+            "caller_role": "mobile",
+            "target_role": "laptop",
+            "caller_id": None,
+            "status": "ringing",
+            "started_at": datetime.utcnow().isoformat(),
+            "candidates_for_laptop": [],
+            "candidates_for_mobile": []
+        }
 
     # Explicitly pause CCTV recording and release camera/mic hardware
     try:

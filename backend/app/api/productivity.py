@@ -251,3 +251,30 @@ class JarvisChatPayload(BaseModel):
 @router.post("/gemini/ask")
 def ask_jarvis_ai(payload: JarvisChatPayload):
     return gemini_service.ask_jarvis(payload.prompt, payload.context)
+
+class ScreenVisionPayload(BaseModel):
+    prompt: Optional[str] = None
+
+@router.post("/screen-vision")
+def screen_vision_co_pilot(payload: Optional[ScreenVisionPayload] = None):
+    """
+    Captures live desktop screen, analyzes it using Gemini 2.5 Flash Vision,
+    detects active windows, errors, or code, and provides recommended terminal commands.
+    """
+    prompt = payload.prompt if payload else None
+    from app.screen.streamer import screen_streamer
+    img_bytes = screen_streamer.capture_jpeg(quality=85)
+    if not img_bytes:
+        try:
+            res = subprocess.run(["scrot", "-z", "/tmp/screen_ai.jpg"], timeout=3)
+            if res.returncode == 0 and os.path.exists("/tmp/screen_ai.jpg"):
+                with open("/tmp/screen_ai.jpg", "rb") as f:
+                    img_bytes = f.read()
+        except Exception:
+            pass
+
+    if not img_bytes:
+        raise HTTPException(status_code=500, detail="Failed to capture screen for AI analysis")
+
+    return gemini_service.analyze_screen_vision(img_bytes, prompt)
+

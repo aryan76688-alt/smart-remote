@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert, Radio, Globe, Terminal, Wifi, Skull, RefreshCw,
-  Copy, Check, Play, Square, AlertTriangle, Zap
+  Copy, Check, Play, Square, AlertTriangle, Zap, EyeOff, Camera, Lock,
+  ExternalLink, Download
 } from 'lucide-react';
 import { api } from '../services/api';
 
 export const CyberPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'radar' | 'tor' | 'payload' | 'wifi' | 'listeners'>('radar');
+  const [activeTab, setActiveTab] = useState<'radar' | 'intruder' | 'tor' | 'payload' | 'wifi' | 'listeners'>('radar');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Intruder Trap state
+  const [intruderStatus, setIntruderStatus] = useState<any>({ armed: false, honeypot: true, events: [] });
+  const [intruderSnapshots, setIntruderSnapshots] = useState<any[]>([]);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
 
   // Radar state
   const [connections, setConnections] = useState<any[]>([]);
@@ -138,8 +144,67 @@ export const CyberPage: React.FC = () => {
     }
   };
 
+  // ── Intruder Trap & Decoy ──
+  const fetchIntruder = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [status, snaps] = await Promise.all([
+        api.getIntruderStatus(),
+        api.getIntruderSnapshots()
+      ]);
+      setIntruderStatus(status);
+      setIntruderSnapshots(snaps.snapshots || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch intruder trap state');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleArm = async () => {
+    try {
+      if (intruderStatus.armed) {
+        await api.disarmIntruderTrap();
+      } else {
+        await api.armIntruderTrap({ honeypot: intruderStatus.honeypot });
+      }
+      await fetchIntruder();
+    } catch (err: any) {
+      alert(`Error toggling trap: ${err.message}`);
+    }
+  };
+
+  const handleTestTrigger = async () => {
+    try {
+      await api.testTriggerIntruder();
+      alert('Silent snapshot triggered! Captured photo available in gallery below.');
+      await fetchIntruder();
+    } catch (err: any) {
+      alert(`Trigger failed: ${err.message}`);
+    }
+  };
+
+  const handleLaunchDecoy = async () => {
+    try {
+      await api.launchDecoyScreen();
+      alert('Decoy screen launched in fullscreen kiosk mode on Kali Linux monitor.');
+    } catch (err: any) {
+      alert(`Decoy launch failed: ${err.message}`);
+    }
+  };
+
+  const handleCloseDecoy = async () => {
+    try {
+      await api.closeDecoyScreen();
+    } catch (err: any) {
+      alert(`Decoy close failed: ${err.message}`);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'radar') fetchRadar();
+    else if (activeTab === 'intruder') fetchIntruder();
     else if (activeTab === 'tor') fetchTor();
     else if (activeTab === 'payload') handleGeneratePayload();
     else if (activeTab === 'wifi') fetchWifi();
@@ -179,6 +244,7 @@ export const CyberPage: React.FC = () => {
         <button
           onClick={() => {
             if (activeTab === 'radar') fetchRadar();
+            else if (activeTab === 'intruder') fetchIntruder();
             else if (activeTab === 'tor') fetchTor();
             else if (activeTab === 'payload') handleGeneratePayload();
             else if (activeTab === 'wifi') fetchWifi();
@@ -193,9 +259,10 @@ export const CyberPage: React.FC = () => {
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="grid grid-cols-5 gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-800">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 bg-slate-950/60 p-1.5 rounded-xl border border-slate-800">
         {[
           { id: 'radar', label: 'RADAR', icon: Radio },
+          { id: 'intruder', label: 'TRAP/DECOY', icon: EyeOff },
           { id: 'tor', label: 'TOR', icon: Globe },
           { id: 'payload', label: 'PAYLOAD', icon: Skull },
           { id: 'wifi', label: 'WI-FI', icon: Wifi },
@@ -497,6 +564,151 @@ export const CyberPage: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 6: INTRUDER TRAP & HONEYPOT DECOY ── */}
+      {activeTab === 'intruder' && (
+        <div className="space-y-4">
+          {/* Trap Control Panel */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-rose-950/30 border border-slate-800 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className={`p-2 rounded-xl ${intruderStatus.armed ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse' : 'bg-slate-800 text-slate-400'}`}>
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">SILENT INTRUDER TRAP</h3>
+                  <p className="text-[10px] text-slate-400 font-mono">Webcam Snapshots • AC/Lid Tamper • Fake OS Decoy</p>
+                </div>
+              </div>
+
+              <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border ${
+                intruderStatus.armed ? 'bg-rose-950 text-rose-300 border-rose-600 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}>
+                {intruderStatus.armed ? 'ARMED & WATCHING' : 'DISARMED'}
+              </span>
+            </div>
+
+            {/* Arm / Disarm Toggle Button */}
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                onClick={handleToggleArm}
+                className={`py-3 px-4 rounded-xl font-bold text-xs font-mono flex items-center justify-center space-x-2 active:scale-95 transition-all shadow-md ${
+                  intruderStatus.armed
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black shadow-emerald-600/30'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                <span>{intruderStatus.armed ? 'DISARM INTRUDER TRAP' : 'ARM SURVEILLANCE TRAP'}</span>
+              </button>
+
+              <button
+                onClick={handleTestTrigger}
+                className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs font-mono flex items-center justify-center space-x-2 active:scale-95 transition-all"
+              >
+                <Camera className="w-4 h-4 text-cyan-400" />
+                <span>TEST TRIGGER (SNAP NOW)</span>
+              </button>
+            </div>
+
+            {/* Honeypot Decoy Screen Actions */}
+            <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-slate-300 font-mono flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                <span>Honeypot Decoy: Fake Windows/Kali Update Screen</span>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={handleLaunchDecoy}
+                  className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold font-mono hover:bg-cyan-900 active:scale-95"
+                >
+                  LAUNCH DECOY NOW
+                </button>
+                <button
+                  onClick={handleCloseDecoy}
+                  className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-bold font-mono hover:bg-slate-700 active:scale-95"
+                >
+                  CLOSE DECOY
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Captured Photos Gallery */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold font-mono text-slate-300 flex items-center gap-2">
+                <span>CAPTURED INTRUDER PHOTOS</span>
+                <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">
+                  {intruderSnapshots.length} PHOTOS
+                </span>
+              </h3>
+            </div>
+
+            {intruderSnapshots.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-slate-950/60 border border-slate-800 text-center space-y-2">
+                <Camera className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="text-xs text-slate-400 font-mono">No intruder snapshots recorded yet.</p>
+                <p className="text-[10px] text-slate-500">When armed, any charger disconnect or physical tamper snaps a photo.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {intruderSnapshots.map((snap, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedSnapshot(snap.url)}
+                    className="group relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 cursor-pointer hover:border-cyan-400 transition-all shadow-md"
+                  >
+                    <img
+                      src={snap.url}
+                      alt="Intruder capture"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <span className="text-[9px] font-mono text-slate-200 truncate">
+                        {new Date(snap.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Snapshot Preview Modal */}
+      {selectedSnapshot && (
+        <div
+          onClick={() => setSelectedSnapshot(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+        >
+          <div className="relative max-w-2xl w-full bg-slate-950 border border-cyan-500/40 rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <img src={selectedSnapshot} alt="Enlarged Intruder Capture" className="w-full h-auto object-contain max-h-[75vh]" />
+            <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+              <span className="text-xs font-mono text-slate-300">Intruder Evidence Capture</span>
+              <div className="flex items-center space-x-2">
+                <a
+                  href={selectedSnapshot}
+                  download="intruder_evidence.jpg"
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600 text-white font-mono text-xs flex items-center space-x-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download</span>
+                </a>
+                <button
+                  onClick={() => setSelectedSnapshot(null)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

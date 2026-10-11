@@ -615,6 +615,41 @@ export const api = {
       blank_screen: options.blank_screen ?? true,
       minimize_windows: options.minimize_windows ?? true
     })
+  }),
+  armIntruderTrap: (options?: { honeypot?: boolean; trigger_mode?: string }) => request<{ success: boolean; armed: boolean; honeypot: boolean }>('/api/security/intruder/arm', {
+    method: 'POST',
+    body: JSON.stringify(options || {})
+  }),
+  disarmIntruderTrap: () => request<{ success: boolean; armed: boolean }>('/api/security/intruder/disarm', {
+    method: 'POST'
+  }),
+  getIntruderStatus: () => request<{ armed: boolean; honeypot: boolean; trigger_mode: string; armed_at: string | null; last_triggered: string | null; events: any[] }>('/api/security/intruder/status'),
+  testTriggerIntruder: () => request<{ success: boolean; event: any }>('/api/security/intruder/trigger', {
+    method: 'POST'
+  }),
+  getIntruderSnapshots: () => request<{ snapshots: any[]; total: number }>('/api/security/intruder/snapshots'),
+  launchDecoyScreen: () => request<{ success: boolean }>('/api/security/decoy/launch', {
+    method: 'POST'
+  }),
+  closeDecoyScreen: () => request<{ success: boolean }>('/api/security/decoy/close', {
+    method: 'POST'
+  }),
+
+  // ── Productivity & AI Screen Vision ──────────────────────────────────────
+  getScreenVision: (prompt?: string) => request<{ success: boolean; summary: string; explanation: string; terminal_commands: string[]; configured: boolean }>('/api/productivity/screen-vision', {
+    method: 'POST',
+    body: JSON.stringify({ prompt })
+  }),
+
+  // ── Workspaces & Wake-on-LAN ─────────────────────────────────────────────
+  getWorkspaces: () => request<{ current: number; total: number }>('/api/system/workspaces'),
+  switchWorkspace: (workspace: number) => request<{ success: boolean; workspace: number }>('/api/system/workspaces/switch', {
+    method: 'POST',
+    body: JSON.stringify({ workspace })
+  }),
+  sendWakeOnLan: (mac_address: string, broadcast_ip?: string) => request<{ success: boolean; mac: string; message: string }>('/api/system/wol', {
+    method: 'POST',
+    body: JSON.stringify({ mac_address, broadcast_ip: broadcast_ip || '255.255.255.255' })
   })
 };
 

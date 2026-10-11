@@ -117,7 +117,14 @@ export const CallPage: React.FC = () => {
         <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
           {mainStream ? (
             <video
-              ref={isMainLocal ? localVideoRef : remoteVideoRef}
+              ref={(el) => {
+                if (isMainLocal) localVideoRef.current = el;
+                else remoteVideoRef.current = el;
+                if (el && mainStream && el.srcObject !== mainStream) {
+                  el.srcObject = mainStream;
+                  el.play().catch(() => {});
+                }
+              }}
               autoPlay
               playsInline
               muted={isMainLocal}
@@ -162,7 +169,14 @@ export const CallPage: React.FC = () => {
         >
           {pipStream ? (
             <video
-              ref={isMainLocal ? remoteVideoRef : localVideoRef}
+              ref={(el) => {
+                if (isMainLocal) remoteVideoRef.current = el;
+                else localVideoRef.current = el;
+                if (el && pipStream && el.srcObject !== pipStream) {
+                  el.srcObject = pipStream;
+                  el.play().catch(() => {});
+                }
+              }}
               autoPlay
               playsInline
               muted={!isMainLocal}

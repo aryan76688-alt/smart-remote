@@ -15,10 +15,13 @@ import { TacticalNumpadTab } from '../components/remote/TacticalNumpadTab';
 import { AirMouseModal } from '../components/remote/AirMouseModal';
 import { BarcodeScannerModal } from '../components/remote/BarcodeScannerModal';
 import { ClipboardSyncModal } from '../components/common/ClipboardSyncModal';
+import { GyroSteeringTab } from '../components/remote/GyroSteeringTab';
+import { WorkspaceSwitcherTab } from '../components/remote/WorkspaceSwitcherTab';
+import { Gauge, Layers } from 'lucide-react';
 
 export const RemotePage: React.FC = () => {
   const { isApk, triggerHaptic } = useApp();
-  const [activeTab, setActiveTab] = useState<'console' | 'touchpad' | 'mouse' | 'dpad' | 'keyboard' | 'numpad' | 'media' | 'shortcuts'>('console');
+  const [activeTab, setActiveTab] = useState<'console' | 'steering' | 'workspaces' | 'touchpad' | 'mouse' | 'dpad' | 'keyboard' | 'numpad' | 'media' | 'shortcuts'>('console');
 
   // Modals
   const [airMouseOpen, setAirMouseOpen] = useState(false);
@@ -27,6 +30,8 @@ export const RemotePage: React.FC = () => {
 
   const tabs = [
     { id: 'console', label: 'Console', icon: Gamepad2 },
+    { id: 'steering', label: 'Steering', icon: Gauge },
+    { id: 'workspaces', label: 'Desktops', icon: Layers },
     { id: 'touchpad', label: 'Touchpad', icon: Hand },
     { id: 'mouse', label: 'Mouse', icon: Mouse },
     { id: 'numpad', label: 'Numpad', icon: Hash },
@@ -101,6 +106,8 @@ export const RemotePage: React.FC = () => {
       {/* Tab View Container */}
       <div className="flex-1 overflow-hidden">
         {activeTab === 'console' && <GamingConsoleTab />}
+        {activeTab === 'steering' && <GyroSteeringTab />}
+        {activeTab === 'workspaces' && <WorkspaceSwitcherTab />}
         {activeTab === 'touchpad' && <TouchpadTab />}
         {activeTab === 'mouse' && <MouseTab />}
         {activeTab === 'numpad' && <TacticalNumpadTab />}

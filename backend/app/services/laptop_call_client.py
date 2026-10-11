@@ -28,10 +28,18 @@ def open_laptop_call_interface(session_id: str, server_base: str = "http://local
     """Directly opens the full video call interface on the Kali Linux laptop display with camera and mic automatically enabled."""
     global _active_laptop_call_proc
     with _proc_lock:
-        # If an interface is already open, don't open multiple windows
+        # If an interface is already open, cleanly terminate it first so new session opens
         if _active_laptop_call_proc and _active_laptop_call_proc.poll() is None:
-            print(f"[LAPTOP-CALL] Video call window already active for session {session_id}")
-            return
+            print(f"[LAPTOP-CALL] Closing previous call window to launch session {session_id}")
+            try:
+                _active_laptop_call_proc.terminate()
+                _active_laptop_call_proc.wait(timeout=1.0)
+            except Exception:
+                try:
+                    _active_laptop_call_proc.kill()
+                except Exception:
+                    pass
+            _active_laptop_call_proc = None
 
         env = os.environ.copy()
         if "DISPLAY" not in env:
@@ -56,10 +64,15 @@ def open_laptop_call_interface(session_id: str, server_base: str = "http://local
             cmd = [
                 chromium_bin,
                 f"--app={call_url}",
-                "--use-fake-ui-for-media-stream",       # Auto-approves webcam & microphone without prompt
+                "--test-type",                                # Suppresses 'unsupported command-line flag' warning banner
+                "--use-fake-ui-for-media-stream",             # Auto-approves webcam & microphone without prompt
                 "--autoplay-policy=no-user-gesture-required", # Allows audio/video autoplay
+                "--allow-insecure-localhost",
+                "--unsafely-treat-insecure-origin-as-secure=http://localhost:7070,http://127.0.0.1:7070,http://100.69.194.11:7070",
+                "--enable-features=WebRTCPeerConnectionWithContext",
                 "--user-data-dir=/tmp/smart_remote_call_profile",
                 "--no-first-run",
+                "--no-default-browser-check",
                 "--disable-infobars",
                 "--disable-session-crashed-bubble",
                 "--window-size=1280,720",

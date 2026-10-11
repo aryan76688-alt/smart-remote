@@ -6,8 +6,11 @@ from app.system.monitor import system_monitor
 from app.database import get_db
 from app.models.entities import Activity
 from app.services.tunnel_manager import tunnel_manager
+from pydantic import BaseModel
 import subprocess
 import os
+import socket
+import re
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -113,3 +116,64 @@ def power_control(req: PowerRequest, db: Session = Depends(get_db)):
     ))
     db.commit()
     return res
+
+# ──────────────────────────────────────────────────────────────────────────
+# VIRTUAL DESKTOPS / WORKSPACES
+# ──────────────────────────────────────────────────────────────────────────
+@router.get("/workspaces")
+def get_workspaces():
+    """Gets active X11 desktop workspace index and total workspace count."""
+    env = os.environ.copy()
+    env["DISPLAY"] = ":0"
+    current = 0
+    count = 4
+    try:
+        res_c = subprocess.run(["xdotool", "get_desktop"], env=env, capture_output=True, text=True, timeout=1.5)
+        if res_c.returncode == 0 and res_c.stdout.strip().isdigit():
+            current = int(res_c.stdout.strip())
+        res_n = subprocess.run(["xdotool", "get_num_desktops"], env=env, capture_output=True, text=True, timeout=1.5)
+        if res_n.returncode == 0 and res_n.stdout.strip().isdigit():
+            count = int(res_n.stdout.strip())
+    except Exception:
+        pass
+    return {"current": current, "total": max(count, 4)}
+
+class SwitchWorkspaceRequest(BaseModel):
+    workspace: int
+
+@router.post("/workspaces/switch")
+def switch_workspace(req: SwitchWorkspaceRequest):
+    """Switches active X11 workspace immediately."""
+    env = os.environ.copy()
+    env["DISPLAY"] = ":0"
+    try:
+        res = subprocess.run(["wmctrl", "-s", str(req.workspace)], env=env, timeout=1.5)
+        if res.returncode != 0:
+            subprocess.run(["xdotool", "set_desktop", str(req.workspace)], env=env, timeout=1.5)
+        return {"success": True, "workspace": req.workspace}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# ──────────────────────────────────────────────────────────────────────────
+# WAKE-ON-LAN (WoL)
+# ──────────────────────────────────────────────────────────────────────────
+class WolRequest(BaseModel):
+    mac_address: str
+    broadcast_ip: str = "255.255.255.255"
+    port: int = 9
+
+@router.post("/wol")
+def wake_on_lan(req: WolRequest):
+    """Sends magic packet to wake machines on local network."""
+    clean_mac = re.sub(r"[^0-9a-fA-F]", "", req.mac_address)
+    if len(clean_mac) != 12:
+        raise HTTPException(status_code=400, detail="Invalid MAC address format (must be 12 hex characters)")
+    magic_bytes = bytes.fromhex("FF" * 6 + clean_mac * 16)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.sendto(magic_bytes, (req.broadcast_ip, req.port))
+        return {"success": True, "mac": req.mac_address, "message": f"Magic packet broadcasted to {req.mac_address}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send WoL packet: {e}")
+

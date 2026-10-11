@@ -182,4 +182,98 @@ class GeminiService:
         except Exception as e:
             return {"reply": f"Jarvis AI error: {e}", "command": None, "configured": True}
 
+    def analyze_screen_vision(self, image_bytes: bytes, user_prompt: Optional[str] = None) -> Dict[str, Any]:
+        """Analyzes a full desktop or terminal screenshot, explains the screen state, debugs errors, and suggests terminal commands."""
+        if not self.is_configured():
+            return {
+                "success": False,
+                "summary": "Gemini API key is not configured. Add your key in Settings to enable AI Screen Vision.",
+                "explanation": "To enable Gemini Screen Vision Co-Pilot, go to Settings and enter your free Google Gemini API key.",
+                "terminal_commands": [],
+                "configured": False
+            }
+
+        try:
+            b64_image = base64.b64encode(image_bytes).decode("utf-8")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={self._api_key}"
+
+            prompt_text = user_prompt or "Analyze this screen and tell me what is currently open, any errors, and suggested commands."
+            instruction = (
+                "You are an expert Kali Linux & DevOps AI Co-Pilot analyzing the user's laptop screen. "
+                "Analyze the provided screenshot carefully. "
+                "User question/intent: " + prompt_text + "\n\n"
+                "Provide your response in JSON format with exactly these keys:\n"
+                "{\n"
+                '  "summary": "1-2 sentence quick overview of the screen state",\n'
+                '  "explanation": "Detailed breakdown of visible windows, code, errors, terminal outputs, or system status",\n'
+                '  "terminal_commands": ["command1", "command2"]\n'
+                "}\n"
+                "Ensure terminal_commands is an array of safe, immediately executable bash commands to troubleshoot, solve the problem, or continue the workflow. Only output valid JSON."
+            )
+
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": instruction},
+                            {
+                                "inline_data": {
+                                    "mime_type": "image/jpeg",
+                                    "data": b64_image
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 600
+                }
+            }
+
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+
+            with urllib.request.urlopen(req, timeout=18) as response:
+                res_body = json.loads(response.read().decode("utf-8"))
+                candidates = res_body.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        raw_text = parts[0].get("text", "").strip()
+                        if "```json" in raw_text:
+                            raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                        elif "```" in raw_text:
+                            raw_text = raw_text.split("```")[1].split("```")[0].strip()
+                        try:
+                            parsed = json.loads(raw_text)
+                            return {
+                                "success": True,
+                                "summary": parsed.get("summary", "Screen analyzed."),
+                                "explanation": parsed.get("explanation", raw_text),
+                                "terminal_commands": parsed.get("terminal_commands", []),
+                                "configured": True
+                            }
+                        except Exception:
+                            return {
+                                "success": True,
+                                "summary": "Screen analyzed.",
+                                "explanation": raw_text,
+                                "terminal_commands": [],
+                                "configured": True
+                            }
+
+            return {"success": False, "summary": "No AI analysis returned.", "explanation": "", "terminal_commands": [], "configured": True}
+
+        except urllib.error.HTTPError as e:
+            err_msg = e.read().decode("utf-8", errors="ignore")
+            logger.warning(f"Gemini Screen Vision HTTP Error {e.code}: {err_msg}")
+            return {"success": False, "summary": f"Gemini API Error {e.code}", "explanation": err_msg, "terminal_commands": [], "configured": True}
+        except Exception as e:
+            logger.error(f"Gemini Screen Vision failed: {e}")
+            return {"success": False, "summary": f"AI error: {str(e)}", "explanation": str(e), "terminal_commands": [], "configured": True}
+
 gemini_service = GeminiService()

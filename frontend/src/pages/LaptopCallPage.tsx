@@ -40,12 +40,14 @@ export const LaptopCallPage: React.FC = () => {
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(() => {});
     }
   }, [localStream, callState]);
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(() => {});
     }
   }, [remoteStream, callState]);
 
@@ -120,7 +122,13 @@ export const LaptopCallPage: React.FC = () => {
         <div className="relative w-full h-full max-w-7xl max-h-[82vh] rounded-3xl overflow-hidden bg-slate-950 border border-slate-800/80 shadow-2xl flex items-center justify-center">
           {remoteStream ? (
             <video
-              ref={remoteVideoRef}
+              ref={(el) => {
+                remoteVideoRef.current = el;
+                if (el && remoteStream && el.srcObject !== remoteStream) {
+                  el.srcObject = remoteStream;
+                  el.play().catch(() => {});
+                }
+              }}
               autoPlay
               playsInline
               className="w-full h-full object-cover sm:object-contain"
