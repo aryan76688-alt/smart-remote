@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://quit-tested-lyrics-trusted.trycloudflare.com",
+  "cloudflare_url": "https://frozen-unless-onion-cards.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-11T17:58:03.717078",
-  "timestamp": 1791741483
+  "updated_at": "2026-10-12T03:32:22.995466",
+  "timestamp": 1791775942
 }
