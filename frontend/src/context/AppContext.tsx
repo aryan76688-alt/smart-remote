@@ -36,7 +36,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [activeRoute, setActiveRoute] = useState<string>('/dashboard');
+  const [activeRoute, setActiveRoute] = useState<string>('/radar');
   const [deviceMode, setDeviceModeState] = useState<DeviceLayoutMode>('mobile');
 
   const [theme, setThemeState] = useState<string>(() => {

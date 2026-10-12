@@ -19,6 +19,7 @@ from app.api.devops import devops_router
 from app.api.multimedia import router as multimedia_router
 from app.api.security import router as security_router
 from app.api.clipboard import router as clipboard_router
+from app.api.tracking import router as tracking_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(system_router)
@@ -41,4 +42,5 @@ api_router.include_router(devops_router)
 api_router.include_router(multimedia_router)
 api_router.include_router(security_router)
 api_router.include_router(clipboard_router)
+api_router.include_router(tracking_router)
 

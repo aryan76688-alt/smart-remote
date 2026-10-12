@@ -28,6 +28,13 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.MediaStore
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.hardware.camera2.CameraManager
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.BatteryManager
 import android.text.format.Formatter
 import android.view.Gravity
 import android.view.View
@@ -87,6 +94,178 @@ class MainActivity : ComponentActivity() {
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var powerReceiver: android.content.BroadcastReceiver? = null
+
+    private var locationManager: LocationManager? = null
+    private var lastLatitude: Double = 23.0276
+    private var lastLongitude: Double = 72.5871
+    private var lastAccuracy: Float = 10.0f
+    private var lastSpeed: Float = 0.0f
+    private var lastHeading: Float = 0.0f
+    private var toneGenerator: ToneGenerator? = null
+    private val isSirenRunning = AtomicBoolean(false)
+    private val isStrobeRunning = AtomicBoolean(false)
+    private var cameraManager: CameraManager? = null
+    private var rearCameraId: String? = null
+    private var uniqueDeviceId: String? = null
+
+    private fun getUniqueDeviceId(): String {
+        if (uniqueDeviceId != null) return uniqueDeviceId!!
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        var id = prefs.getString("unique_fleet_id", null)
+        if (id == null) {
+            id = "phone-" + java.util.UUID.randomUUID().toString().substring(0, 8)
+            prefs.edit().putString("unique_fleet_id", id).apply()
+        }
+        uniqueDeviceId = id
+        return id
+    }
+
+    private fun setupLocationTracking() {
+        try {
+            locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                val listener = object : LocationListener {
+                    override fun onLocationChanged(loc: Location) {
+                        lastLatitude = loc.latitude
+                        lastLongitude = loc.longitude
+                        lastAccuracy = loc.accuracy
+                        lastSpeed = loc.speed * 3.6f
+                        lastHeading = loc.bearing
+                    }
+                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
+                }
+                locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000L, 5f, listener)
+                locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000L, 5f, listener)
+                val lastKnown = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                lastKnown?.let {
+                    lastLatitude = it.latitude
+                    lastLongitude = it.longitude
+                    lastAccuracy = it.accuracy
+                }
+            }
+        } catch (_: Exception) {}
+
+        try {
+            cameraManager = getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+            cameraManager?.cameraIdList?.firstOrNull()?.let {
+                rearCameraId = it
+            }
+        } catch (_: Exception) {}
+
+        executor.execute {
+            while (!isDestroyed && !isFinishing) {
+                try {
+                    Thread.sleep(8000)
+                    reportFleetTelemetry()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun reportFleetTelemetry() {
+        try {
+            val server = activeServerUrl
+            if (server.isEmpty()) return
+            val url = URL("$server/api/tracking/device/update")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 3000
+                readTimeout = 3000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+            val json = JSONObject().apply {
+                put("device_id", getUniqueDeviceId())
+                put("name", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
+                put("model", Build.MODEL)
+                put("role", "mobile")
+                put("lat", lastLatitude)
+                put("lng", lastLongitude)
+                put("accuracy", lastAccuracy)
+                put("battery", getBatteryPct())
+                put("is_charging", isCharging())
+                put("speed", lastSpeed)
+                put("heading", lastHeading)
+            }
+            conn.outputStream.use { os ->
+                os.write(json.toString().toByteArray())
+            }
+            conn.responseCode
+            conn.disconnect()
+        } catch (_: Exception) {}
+    }
+
+    private fun getBatteryPct(): Int {
+        return try {
+            val bm = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 80
+        } catch (_: Exception) { 80 }
+    }
+
+    private fun isCharging(): Boolean {
+        return try {
+            val intent = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        } catch (_: Exception) { false }
+    }
+
+    fun playSirenAlarm(enable: Boolean) {
+        if (enable) {
+            if (isSirenRunning.getAndSet(true)) return
+            executor.execute {
+                try {
+                    val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    am?.setStreamVolume(AudioManager.STREAM_ALARM, am?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 10, 0)
+                    toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                    while (isSirenRunning.get()) {
+                        toneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 400)
+                        Thread.sleep(450)
+                        toneGenerator?.startTone(ToneGenerator.TONE_SUP_RINGTONE, 400)
+                        Thread.sleep(450)
+                    }
+                } catch (_: Exception) {} finally {
+                    toneGenerator?.release()
+                    toneGenerator = null
+                    isSirenRunning.set(false)
+                }
+            }
+        } else {
+            isSirenRunning.set(false)
+            toneGenerator?.stopTone()
+            toneGenerator?.release()
+            toneGenerator = null
+        }
+    }
+
+    fun setFlashlightStrobe(enable: Boolean) {
+        if (enable) {
+            if (isStrobeRunning.getAndSet(true)) return
+            executor.execute {
+                try {
+                    val camId = rearCameraId ?: return@execute
+                    var on = false
+                    while (isStrobeRunning.get()) {
+                        on = !on
+                        cameraManager?.setTorchMode(camId, on)
+                        Thread.sleep(120)
+                    }
+                    cameraManager?.setTorchMode(camId, false)
+                } catch (_: Exception) {} finally {
+                    isStrobeRunning.set(false)
+                }
+            }
+        } else {
+            isStrobeRunning.set(false)
+            try {
+                rearCameraId?.let { cameraManager?.setTorchMode(it, false) }
+            } catch (_: Exception) {}
+        }
+    }
+
 
     data class ServerCandidate(
         val id: String,
@@ -157,6 +336,7 @@ class MainActivity : ComponentActivity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         checkAndRequestPermissions()
+        setupLocationTracking()
 
         defaultStatusBarHeight = run {
             val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
@@ -652,7 +832,9 @@ class MainActivity : ComponentActivity() {
         val permissions = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.MODIFY_AUDIO_SETTINGS,
-            Manifest.permission.CAMERA
+            Manifest.permission.CAMERA,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -1276,6 +1458,43 @@ class MainActivity : ComponentActivity() {
             } else {
                 webView.evaluateJavascript("window.onBiometricResult && window.onBiometricResult(true, 'Bypassed (API < 28)');", null)
             }
+        }
+
+        @JavascriptInterface
+        fun triggerSirenAlarm(enable: Boolean) {
+            runOnUiThread {
+                this@MainActivity.playSirenAlarm(enable)
+            }
+        }
+
+        @JavascriptInterface
+        fun setFlashlightStrobe(enable: Boolean) {
+            runOnUiThread {
+                this@MainActivity.setFlashlightStrobe(enable)
+            }
+        }
+
+        @JavascriptInterface
+        fun getDeviceModel(): String = Build.MODEL
+
+        @JavascriptInterface
+        fun getBatteryLevel(): Int = this@MainActivity.getBatteryPct()
+
+        @JavascriptInterface
+        fun isBatteryCharging(): Boolean = this@MainActivity.isCharging()
+
+        @JavascriptInterface
+        fun getFleetDeviceId(): String = this@MainActivity.getUniqueDeviceId()
+
+        @JavascriptInterface
+        fun getLastLocation(): String {
+            val obj = JSONObject().apply {
+                put("lat", lastLatitude)
+                put("lng", lastLongitude)
+                put("accuracy", lastAccuracy)
+                put("speed", lastSpeed)
+            }
+            return obj.toString()
         }
     }
 }

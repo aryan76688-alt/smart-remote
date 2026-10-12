@@ -37,6 +37,8 @@ import { N8nPage } from './pages/N8nPage';
 import { CyberPage } from './pages/CyberPage';
 import { DevOpsPage } from './pages/DevOpsPage';
 import { DecoyPage } from './pages/DecoyPage';
+import { FleetRadarPage } from './pages/FleetRadarPage';
+import { FleetManagerPage } from './pages/FleetManagerPage';
 
 const AppContent: React.FC = () => {
   const {
@@ -166,6 +168,10 @@ const AppContent: React.FC = () => {
   // PAGE 3: Main Remote Controller
   const renderActivePage = () => {
     switch (activeRoute) {
+      case '/radar':
+        return <FleetRadarPage />;
+      case '/fleet':
+        return <FleetManagerPage />;
       case '/cyber':
         return <CyberPage />;
       case '/devops':

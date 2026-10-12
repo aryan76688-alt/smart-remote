@@ -38,6 +38,31 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [unlocking, setUnlocking] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [showGlobalModal, setShowGlobalModal] = useState<boolean>(false);
+  const [fleetStrip, setFleetStrip] = useState<Array<{ id: string; name: string; battery: number; is_charging: boolean; role: string }>>([
+    { id: 'laptop-host', name: 'KALI', battery: 88, is_charging: true, role: 'laptop' },
+    { id: 'phone-01', name: 'PIXEL', battery: 94, is_charging: false, role: 'mobile' },
+  ]);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchFleetQuick = async () => {
+      try {
+        const res = await api.getFleetTelemetry();
+        if (mounted && res && res.devices) {
+          setFleetStrip(res.devices.map(d => ({
+            id: d.id,
+            name: d.name.replace(/ \(Primary\)| Tactical|-Node|-Field|-Recon/g, '').substring(0, 7).toUpperCase(),
+            battery: d.battery,
+            is_charging: d.is_charging,
+            role: d.role
+          })));
+        }
+      } catch {}
+    };
+    fetchFleetQuick();
+    const interval = setInterval(fetchFleetQuick, 8000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -180,15 +205,39 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
         </div>
 
-        {/* Center / Desktop Info (hidden on small phone screens) */}
-        <div className="hidden md:flex items-center space-x-3 text-xs">
+        {/* Center / Fleet Telemetry Strip */}
+        <div className="hidden sm:flex items-center space-x-2 text-xs">
           <button
             onClick={() => setShowWarning(true)}
-            className="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono text-[11px] hover:bg-cyan-500/20 transition-colors"
+            className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono text-[10px] hover:bg-cyan-500/20 transition-colors"
           >
             <Wifi className="w-3 h-3" />
             <span>{tailscaleIp}</span>
           </button>
+
+          {/* Multi-Device Battery Pills */}
+          <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar max-w-[280px]">
+            {fleetStrip.slice(0, 3).map(dev => (
+              <button
+                key={dev.id}
+                onClick={() => {
+                  triggerHaptic(20);
+                  setActiveRoute('/radar');
+                }}
+                className={`flex items-center space-x-1 px-1.5 py-0.5 rounded border text-[9px] font-mono transition-all ${
+                  dev.battery < 20
+                    ? 'bg-rose-950/40 border-rose-500/40 text-rose-300 animate-pulse'
+                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-cyan-500/40'
+                }`}
+                title={`${dev.name}: ${dev.battery}% (Tap to view on Radar)`}
+              >
+                <span className="text-[8px] text-slate-400 font-bold">{dev.name}</span>
+                <span className={`font-bold ${dev.battery < 20 ? 'text-rose-400' : 'text-cyan-400'}`}>
+                  {dev.battery}%{dev.is_charging ? '⚡' : ''}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Right Section: Clean, Minimalist (Voice Button + More Menu) */}

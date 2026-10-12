@@ -650,7 +650,118 @@ export const api = {
   sendWakeOnLan: (mac_address: string, broadcast_ip?: string) => request<{ success: boolean; mac: string; message: string }>('/api/system/wol', {
     method: 'POST',
     body: JSON.stringify({ mac_address, broadcast_ip: broadcast_ip || '255.255.255.255' })
-  })
+  }),
+
+  // ── Tactical Fleet & Google Maps Radar ──────────────────────────────────
+  getFleetTelemetry: () => request<{
+    success: boolean;
+    total: number;
+    online_count: number;
+    devices: Array<{
+      id: string;
+      name: string;
+      model: string;
+      role: 'laptop' | 'mobile';
+      lat: number;
+      lng: number;
+      accuracy: number;
+      battery: number;
+      is_charging: boolean;
+      speed: number;
+      heading?: number;
+      status: 'online' | 'idle' | 'offline';
+      last_seen: number;
+      siren_active: boolean;
+      strobe_active: boolean;
+      leash_active: boolean;
+      leash_radius: number;
+      address?: string;
+    }>;
+    geofence: {
+      enabled: boolean;
+      name: string;
+      center_lat: number;
+      center_lng: number;
+      radius_meters: number;
+      breached: boolean;
+    };
+    server_time: number;
+  }>('/api/tracking/fleet'),
+
+  updateDeviceLocation: (data: {
+    device_id: string;
+    name?: string;
+    model?: string;
+    role?: 'laptop' | 'mobile';
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    battery?: number;
+    is_charging?: boolean;
+    speed?: number;
+  }) => request<{ success: boolean; device: any }>('/api/tracking/device/update', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+
+  executeDeviceAction: (deviceId: string, action: string, value?: boolean) => request<{
+    success: boolean;
+    action: string;
+    device_id: string;
+    active?: boolean;
+    message?: string;
+  }>(`/api/tracking/device/${deviceId}/action`, {
+    method: 'POST',
+    body: JSON.stringify({ action, value })
+  }),
+
+  getProximityMatrix: () => request<{
+    success: boolean;
+    host_id: string;
+    matrix: Array<{
+      target_id: string;
+      target_name: string;
+      model: string;
+      distance_meters: number;
+      bearing_degrees: number;
+      battery: number;
+      leash_active: boolean;
+      leash_radius: number;
+      leash_broken: boolean;
+    }>;
+    broken_leashes: Array<{
+      device_id: string;
+      device_name: string;
+      distance: number;
+      limit: number;
+    }>;
+    nearest: any;
+  }>('/api/tracking/proximity'),
+
+  getTrackingHistory: () => request<{
+    success: boolean;
+    count: number;
+    history: Array<{
+      device_id: string;
+      lat: number;
+      lng: number;
+      speed: number;
+      timestamp: number;
+    }>;
+  }>('/api/tracking/history'),
+
+  updateGeofence: (config: {
+    center_lat: number;
+    center_lng: number;
+    radius_meters: number;
+    name?: string;
+    enabled: boolean;
+  }) => request<{ success: boolean; geofence: any }>('/api/tracking/geofence', {
+    method: 'POST',
+    body: JSON.stringify(config)
+  }),
+
+  getGeofence: () => request<{ success: boolean; geofence: any }>('/api/tracking/geofence')
 };
 
 
