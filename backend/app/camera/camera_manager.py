@@ -38,6 +38,60 @@ except Exception:
     TK_AVAILABLE = False
 
 
+class FfmpegVideoWriter:
+    """High performance, real-time H.264 (avc1) MP4 writer using ffmpeg libx264 pipe.
+    Guarantees browser-compatible video with YUV420p and faststart metadata.
+    """
+    def __init__(self, output_path: str, width: int, height: int, fps: float = 30.0):
+        self.output_path = output_path
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.process = None
+        self._start()
+
+    def _start(self):
+        cmd = [
+            "ffmpeg", "-y", "-nostdin",
+            "-f", "rawvideo", "-vcodec", "rawvideo",
+            "-s", f"{self.width}x{self.height}",
+            "-pix_fmt", "bgr24",
+            "-r", str(self.fps),
+            "-i", "-",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(self.output_path)
+        ]
+        self.process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+    def write(self, frame):
+        if self.process and self.process.stdin:
+            try:
+                self.process.stdin.write(frame.tobytes())
+            except Exception:
+                pass
+
+    def release(self):
+        if self.process:
+            try:
+                if self.process.stdin:
+                    self.process.stdin.close()
+                self.process.wait(timeout=15)
+            except Exception:
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
+            self.process = None
+
+
 class CameraManager:
     """Manages two-way camera interactions & 24/7 high-definition CCTV surveillance:
     1. Streaming Kali Linux laptop webcam (/dev/video0) in High Definition to phone.
@@ -1413,8 +1467,14 @@ class CameraManager:
             if audio_proc is None:
                 print("[CCTV] Warning: No audio device available for recording")
 
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            writer = cv2.VideoWriter(str(temp_video_path), fourcc, fps, (target_w, target_h))
+            try:
+                writer = FfmpegVideoWriter(str(temp_video_path), target_w, target_h, fps)
+                if writer.process is None or writer.process.poll() is not None:
+                    raise RuntimeError("FfmpegVideoWriter failed to initialize")
+            except Exception as e:
+                print(f"[CCTV] FfmpegVideoWriter fallback: {e}")
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                writer = cv2.VideoWriter(str(temp_video_path), fourcc, fps, (target_w, target_h))
             self.cctv_writer = writer
 
             print(f"[CCTV-24/7] Started HD + Audio recording chunk #{self.cctv_total_chunks}: {filename} ({target_w}x{target_h} @ {fps}fps)")
@@ -1493,32 +1553,123 @@ class CameraManager:
         has_audio = temp_a.exists() and temp_a.stat().st_size > 500
         has_video = temp_v.exists() and temp_v.stat().st_size > 1000
 
+        temp_mux_out = final_out.with_suffix(".mux.mp4")
+
+        is_h264 = False
+        if has_video:
+            try:
+                probe = subprocess.run(
+                    ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", str(temp_v)],
+                    capture_output=True, text=True, timeout=5
+                )
+                if probe.stdout.strip().lower() == "h264":
+                    is_h264 = True
+            except Exception:
+                pass
+
+        v_codec = "copy" if is_h264 else "libx264"
+        v_extra = ["-preset", "ultrafast", "-pix_fmt", "yuv420p"] if not is_h264 else []
+
         if has_video and has_audio:
             try:
                 mux_cmd = [
                     "ffmpeg", "-y", "-nostdin",
                     "-i", str(temp_v),
                     "-i", str(temp_a),
-                    "-c:v", "copy",
+                    "-c:v", v_codec,
+                    *v_extra,
                     "-c:a", "aac",
                     "-movflags", "+faststart",
-                    str(final_out)
+                    str(temp_mux_out)
                 ]
-                subprocess.run(mux_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+                res = subprocess.run(mux_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
+                if res.returncode == 0 and temp_mux_out.exists() and temp_mux_out.stat().st_size > 1000:
+                    temp_mux_out.replace(final_out)
             except Exception as e:
                 print(f"[CCTV] Audio-video mux warning: {e}")
 
+        # If audio mux didn't produce final_out, use video alone
         if not final_out.exists() and has_video:
-            shutil.move(str(temp_v), str(final_out))
+            try:
+                if is_h264:
+                    shutil.move(str(temp_v), str(final_out))
+                else:
+                    mux_cmd = [
+                        "ffmpeg", "-y", "-nostdin",
+                        "-i", str(temp_v),
+                        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                        "-movflags", "+faststart",
+                        str(temp_mux_out)
+                    ]
+                    res = subprocess.run(mux_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
+                    if res.returncode == 0 and temp_mux_out.exists():
+                        temp_mux_out.replace(final_out)
+                    else:
+                        shutil.move(str(temp_v), str(final_out))
+            except Exception as e:
+                print(f"[CCTV] Finalize chunk move error: {e}")
 
         # Cleanup temp audio & video files
         try:
             if temp_v.exists(): temp_v.unlink()
             if temp_a.exists(): temp_a.unlink()
+            if temp_mux_out.exists(): temp_mux_out.unlink()
         except Exception:
             pass
 
         self._finalize_chunk(filename, duration_sec)
+
+    def get_web_playable_path(self, filename: str) -> Optional[Path]:
+        """Returns a guaranteed web-browser playable H.264 MP4 file path for the requested CCTV recording.
+        If the recording was encoded as legacy MPEG-4, creates or returns a web-optimized .web.mp4 version.
+        """
+        safe_filename = os.path.basename(filename)
+        filepath = self.cctv_recordings_dir / safe_filename
+        if not filepath.exists():
+            return None
+
+        if safe_filename.endswith(".web.mp4"):
+            return filepath
+
+        web_path = self.cctv_recordings_dir / f"{filepath.stem}.web.mp4"
+        if web_path.is_file() and web_path.stat().st_size > 1000:
+            return web_path
+
+        # Probe current video codec
+        try:
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", str(filepath)],
+                capture_output=True, text=True, timeout=5
+            )
+            codec = probe.stdout.strip().lower()
+            if codec == "h264":
+                return filepath
+        except Exception:
+            pass
+
+        # Needs conversion to web-compatible H.264
+        tmp_web = self.cctv_recordings_dir / f"{filepath.stem}.web.tmp.mp4"
+        try:
+            cmd = [
+                "ffmpeg", "-y", "-nostdin",
+                "-i", str(filepath),
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                str(tmp_web)
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+            if res.returncode == 0 and tmp_web.exists() and tmp_web.stat().st_size > 1000:
+                tmp_web.replace(web_path)
+                return web_path
+        except Exception as e:
+            print(f"[CCTV] On-demand web transcode error: {e}")
+        finally:
+            if tmp_web.exists():
+                try: tmp_web.unlink()
+                except Exception: pass
+
+        return filepath
 
     def _finalize_chunk(self, filename: str, duration_sec: float):
         filepath = self.cctv_recordings_dir / filename

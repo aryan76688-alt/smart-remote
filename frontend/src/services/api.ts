@@ -699,6 +699,7 @@ export const api = {
     battery?: number;
     is_charging?: boolean;
     speed?: number;
+    heading?: number;
   }) => request<{ success: boolean; device: any }>('/api/tracking/device/update', {
     method: 'POST',
     body: JSON.stringify(data)

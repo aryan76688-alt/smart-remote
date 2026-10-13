@@ -168,25 +168,36 @@ def download_cctv_recording(filename: str):
         raise HTTPException(status_code=404, detail="Recording not found")
     return FileResponse(filepath, media_type="video/mp4", filename=safe_filename)
 
+@router.get("/cctv/recordings/{filename}")
 @router.get("/cctv/stream-video/{filename}")
 def stream_cctv_video(filename: str, request: Request):
-    """Stream MP4 video chunk supporting HTTP 206 Range requests for in-app video scrubbing."""
+    """Stream MP4 video chunk supporting HTTP 206 Range requests for in-app video scrubbing.
+    Guarantees browser-compatible H.264 playback via get_web_playable_path.
+    """
     safe_filename = os.path.basename(filename)
-    filepath = camera_manager.cctv_recordings_dir / safe_filename
-    if not filepath.is_file():
+    raw_filepath = camera_manager.cctv_recordings_dir / safe_filename
+    if not raw_filepath.is_file():
         raise HTTPException(status_code=404, detail="Video file not found")
+
+    filepath = camera_manager.get_web_playable_path(safe_filename) or raw_filepath
 
     stat = filepath.stat()
     file_size = stat.st_size
     range_header = request.headers.get("range")
 
+    headers_base = {
+        "Accept-Ranges": "bytes",
+        "Content-Type": "video/mp4",
+        "Content-Disposition": f'inline; filename="{safe_filename}"'
+    }
+
     if not range_header:
-        return FileResponse(filepath, media_type="video/mp4", filename=safe_filename)
+        return FileResponse(filepath, media_type="video/mp4", filename=safe_filename, headers=headers_base)
 
     try:
         range_spec = range_header.strip().lower()
         if not range_spec.startswith("bytes="):
-            return FileResponse(filepath, media_type="video/mp4", filename=safe_filename)
+            return FileResponse(filepath, media_type="video/mp4", filename=safe_filename, headers=headers_base)
 
         parts = range_spec[6:].split("-")
         start = int(parts[0]) if parts[0] else 0
@@ -212,10 +223,11 @@ def stream_cctv_video(filename: str, request: Request):
             "Accept-Ranges": "bytes",
             "Content-Length": str(chunk_len),
             "Content-Type": "video/mp4",
+            "Content-Disposition": f'inline; filename="{safe_filename}"'
         }
         return StreamingResponse(iter_file(filepath, start, chunk_len), status_code=206, headers=headers)
     except Exception:
-        return FileResponse(filepath, media_type="video/mp4", filename=safe_filename)
+        return FileResponse(filepath, media_type="video/mp4", filename=safe_filename, headers=headers_base)
 
 @router.post("/cctv/upload-to-drive/{filename}")
 def upload_cctv_to_gdrive(filename: str):

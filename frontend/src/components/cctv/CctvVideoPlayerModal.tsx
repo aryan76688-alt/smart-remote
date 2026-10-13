@@ -235,19 +235,39 @@ export const CctvVideoPlayerModal: React.FC<CctvVideoPlayerModalProps> = ({ vide
         >
           {hasError ? (
             <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 font-mono">
-              <AlertCircle className="w-10 h-10 text-amber-400" />
-              <div className="text-sm font-bold text-slate-200">Unable to stream video directly in browser</div>
+              <AlertCircle className="w-10 h-10 text-amber-400 animate-pulse" />
+              <div className="text-sm font-bold text-slate-200">
+                {video.is_cloud ? 'Google Drive Cloud Video' : 'Optimizing Video Stream'}
+              </div>
               <p className="text-xs text-slate-400 max-w-md">
-                This recording is stored safely in Google Drive. You can download it directly or open it in the Google Drive Web Player.
+                {video.is_cloud
+                  ? 'This recording is stored safely in Google Drive. You can download it directly or open it in Google Drive Web Viewer.'
+                  : 'Web-compatible stream is preparing on the server. You can tap Retry, or download the full recording directly.'}
               </p>
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-2 flex-wrap justify-center">
+                {!video.is_cloud && (
+                  <button
+                    onClick={() => {
+                      setHasError(false);
+                      if (videoRef.current) {
+                        videoRef.current.src = `${video.stream_url}?retry=${Date.now()}`;
+                        videoRef.current.load();
+                        videoRef.current.play().catch(() => {});
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-lg active:scale-95 transition-all"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>RETRY STREAM</span>
+                  </button>
+                )}
                 <a
                   href={video.download_url}
                   download
-                  className="px-4 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-lg"
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center space-x-1.5 border border-slate-700 shadow-lg active:scale-95 transition-all"
                 >
                   <Download className="w-4 h-4" />
-                  <span>DOWNLOAD RECORDING</span>
+                  <span>DOWNLOAD DIRECT</span>
                 </a>
                 {video.preview_url && (
                   <a
@@ -257,7 +277,7 @@ export const CctvVideoPlayerModal: React.FC<CctvVideoPlayerModalProps> = ({ vide
                     className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center space-x-1.5 border border-slate-700"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    <span>OPEN DRIVE PLAYER</span>
+                    <span>OPEN DRIVE VIEWER</span>
                   </a>
                 )}
               </div>
@@ -278,7 +298,9 @@ export const CctvVideoPlayerModal: React.FC<CctvVideoPlayerModalProps> = ({ vide
               onPause={() => setIsPlaying(false)}
               onError={() => setHasError(true)}
               className="w-full h-full object-contain max-h-[70vh]"
-            />
+            >
+              <source src={video.stream_url} type="video/mp4" />
+            </video>
           )}
 
           {/* Central Play/Pause Animation Overlay on Click */}

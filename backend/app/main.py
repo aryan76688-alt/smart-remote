@@ -454,6 +454,7 @@ if dist_dir.exists():
 
     @app.api_route("/SmartRemote.apk", methods=["GET", "HEAD"])
     @app.api_route("/api/download/app.apk", methods=["GET", "HEAD"])
+    @app.api_route("/api/apk/download", methods=["GET", "HEAD"])
     async def serve_apk():
         candidates = [
             dist_dir / "SmartRemote.apk",

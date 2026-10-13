@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
     private var cameraManager: CameraManager? = null
     private var rearCameraId: String? = null
     private var uniqueDeviceId: String? = null
+    private val isLocationTrackingStarted = AtomicBoolean(false)
 
     private fun getUniqueDeviceId(): String {
         if (uniqueDeviceId != null) return uniqueDeviceId!!
@@ -123,7 +124,9 @@ class MainActivity : ComponentActivity() {
     private fun setupLocationTracking() {
         try {
             locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            val hasFine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            val hasCoarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            if (hasFine || hasCoarse) {
                 val listener = object : LocationListener {
                     override fun onLocationChanged(loc: Location) {
                         lastLatitude = loc.latitude
@@ -136,10 +139,16 @@ class MainActivity : ComponentActivity() {
                     override fun onProviderEnabled(provider: String) {}
                     override fun onProviderDisabled(provider: String) {}
                 }
-                locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000L, 5f, listener)
-                locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000L, 5f, listener)
-                val lastKnown = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                    ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                try {
+                    locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000L, 5f, listener)
+                } catch (_: Exception) {}
+                try {
+                    locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000L, 5f, listener)
+                } catch (_: Exception) {}
+                val lastKnown = try {
+                    locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                } catch (_: Exception) { null }
                 lastKnown?.let {
                     lastLatitude = it.latitude
                     lastLongitude = it.longitude
@@ -155,12 +164,14 @@ class MainActivity : ComponentActivity() {
             }
         } catch (_: Exception) {}
 
-        executor.execute {
-            while (!isDestroyed && !isFinishing) {
-                try {
-                    Thread.sleep(8000)
-                    reportFleetTelemetry()
-                } catch (_: Exception) {}
+        if (isLocationTrackingStarted.compareAndSet(false, true)) {
+            executor.execute {
+                while (!isDestroyed && !isFinishing) {
+                    try {
+                        Thread.sleep(8000)
+                        reportFleetTelemetry()
+                    } catch (_: Exception) {}
+                }
             }
         }
     }
@@ -320,6 +331,12 @@ class MainActivity : ComponentActivity() {
             ))
         if (grantedStorage) {
             Toast.makeText(this, "Storage permission granted! Files can now be saved to your mobile storage.", Toast.LENGTH_LONG).show()
+        }
+        val grantedLoc = results[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (grantedLoc) {
+            setupLocationTracking()
+            Toast.makeText(this, "Location tracking active on Tactical Radar.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -867,6 +884,7 @@ class MainActivity : ComponentActivity() {
         settings.useWideViewPort = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.setGeolocationEnabled(true)
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         val defaultUa = settings.userAgentString
         settings.userAgentString = "$defaultUa SmartRemoteMobileAndroid/6.0-AutoServer"
@@ -876,6 +894,13 @@ class MainActivity : ComponentActivity() {
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 runOnUiThread { request?.grant(request.resources) }
+            }
+
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: GeolocationPermissions.Callback?
+            ) {
+                callback?.invoke(origin, true, false)
             }
 
             override fun onShowFileChooser(
@@ -1495,6 +1520,19 @@ class MainActivity : ComponentActivity() {
                 put("speed", lastSpeed)
             }
             return obj.toString()
+        }
+
+        @JavascriptInterface
+        fun requestLocationPermission() {
+            runOnUiThread {
+                checkAndRequestPermissions()
+            }
+        }
+
+        @JavascriptInterface
+        fun hasLocationPermission(): Boolean {
+            return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         }
     }
 }

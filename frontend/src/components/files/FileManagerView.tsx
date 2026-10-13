@@ -641,6 +641,28 @@ export const FileManagerView: React.FC = () => {
                     className="max-w-full max-h-full object-contain rounded-lg"
                   />
                 </div>
+              ) : previewFile.mime_type.startsWith('video/') || /\.(mp4|webm|mkv|mov|avi|ts)$/i.test(previewFile.name) ? (
+                <div className="flex flex-col items-center justify-center h-full p-2 sm:p-4">
+                  <video
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="max-w-full max-h-[70vh] rounded-xl border border-slate-800 shadow-2xl bg-black"
+                    src={`/api/files/download?path=${encodeURIComponent(previewFile.path)}`}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+              ) : previewFile.mime_type.startsWith('audio/') || /\.(mp3|wav|ogg|aac|m4a|flac)$/i.test(previewFile.name) ? (
+                <div className="flex flex-col items-center justify-center h-full p-6 space-y-4">
+                  <div className="text-cyan-400 font-mono text-sm font-bold">Audio Track: {previewFile.name}</div>
+                  <audio
+                    controls
+                    playsInline
+                    className="w-full max-w-md accent-cyan-500"
+                    src={`/api/files/download?path=${encodeURIComponent(previewFile.path)}`}
+                  />
+                </div>
               ) : (
                 <div className="text-center py-20 text-slate-500 text-xs font-mono">
                   Binary file preview not supported inline. Use the download button.
