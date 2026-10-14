@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://constitutes-directory-jackson-misc.trycloudflare.com",
+  "cloudflare_url": "https://your-marilyn-knife-sic.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-14T04:27:35.525884",
-  "timestamp": 1791952055
+  "updated_at": "2026-10-14T07:59:43.840143",
+  "timestamp": 1791964783
 }
