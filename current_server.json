@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://your-marilyn-knife-sic.trycloudflare.com",
+  "cloudflare_url": "https://sys-trade-mystery-pocket.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-14T07:59:43.840143",
-  "timestamp": 1791964783
+  "updated_at": "2026-10-14T11:42:18.740948",
+  "timestamp": 1791978138
 }
