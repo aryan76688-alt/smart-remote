@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://alice-gate-illustrations-lead.trycloudflare.com",
+  "cloudflare_url": "https://left-bronze-objects-entirely.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-15T14:00:30.806608",
-  "timestamp": 1792072830
+  "updated_at": "2026-10-15T15:37:02.622733",
+  "timestamp": 1792078622
 }
