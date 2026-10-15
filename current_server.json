@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://usc-consumer-attacked-text.trycloudflare.com",
+  "cloudflare_url": "https://alice-gate-illustrations-lead.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-15T03:50:08.376545",
-  "timestamp": 1792036208
+  "updated_at": "2026-10-15T14:00:30.806608",
+  "timestamp": 1792072830
 }
