@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://buck-aluminum-eos-logic.trycloudflare.com",
+  "cloudflare_url": "https://usc-consumer-attacked-text.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-14T15:18:21.147496",
-  "timestamp": 1791991101
+  "updated_at": "2026-10-15T03:50:08.376545",
+  "timestamp": 1792036208
 }
