@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://determination-sink-puerto-seating.trycloudflare.com",
+  "cloudflare_url": "https://intellectual-wit-favor-ranger.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.1.18:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-16T17:50:52.622192",
-  "timestamp": 1792173052
+  "updated_at": "2026-10-17T02:43:49.099421",
+  "timestamp": 1792205029
 }
