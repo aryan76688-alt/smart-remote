@@ -1,9 +1,16 @@
 {
-  "cloudflare_url": "https://north-playlist-affects-wider.trycloudflare.com",
+  "cloudflare_url": "https://import-susan-amongst-drama.trycloudflare.com",
+  "custom_domain_url": "https://remote.shreeji7.com",
+  "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
+  "additional_domains": [
+    "https://remote.shreeji7.com",
+    "https://smart-remote.shreeji7.com",
+    "https://smart-remote.aryan76688.workers.dev"
+  ],
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.42.221:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-17T12:18:46.238799",
-  "timestamp": 1792239526
+  "updated_at": "2026-10-17T17:17:39.853462",
+  "timestamp": 1792257459
 }
