@@ -1,9 +1,9 @@
 {
-  "cloudflare_url": "https://bucks-contacted-hop-blues.trycloudflare.com",
+  "cloudflare_url": "https://north-playlist-affects-wider.trycloudflare.com",
   "tailscale_url": "http://100.69.194.11:7070",
   "local_wifi_url": "http://192.168.42.221:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-17T07:38:35.477676",
-  "timestamp": 1792222715
+  "updated_at": "2026-10-17T12:18:46.238799",
+  "timestamp": 1792239526
 }
