@@ -74,6 +74,16 @@ export const api = {
     });
   },
   bulkDownload: async (paths: string[]) => {
+    if (!paths || paths.length === 0) return false;
+    const fileName = `smart_remote_export_${Date.now()}.zip`;
+    const bridge = (window as any).AndroidBridge;
+
+    if (bridge && typeof bridge.downloadFile === 'function') {
+      const getUrl = `/api/files/bulk-download-zip?paths=${encodeURIComponent(paths.join(','))}`;
+      bridge.downloadFile(getUrl, fileName, 'application/zip');
+      return true;
+    }
+
     const res = await fetch('/api/files/bulk-download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -81,8 +91,7 @@ export const api = {
     });
     if (!res.ok) throw new Error('Bulk download failed');
     const blob = await res.blob();
-    const fileName = `smart_remote_files_${Date.now()}.zip`;
-    const bridge = (window as any).AndroidBridge;
+
     if (bridge && typeof bridge.saveBase64File === 'function') {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -91,6 +100,7 @@ export const api = {
       reader.readAsDataURL(blob);
       return true;
     }
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -98,7 +108,11 @@ export const api = {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch (_) {}
+    }, 60000);
     return true;
   },
   bulkUpload: async (path: string, files: File[] | FileList) => {
@@ -116,6 +130,128 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ paths, confirmed })
   }),
+
+  // Remote Phone Files (Access Android phone storage anywhere anytime)
+  getPhoneQuickCategories: (deviceId = 'oppo') => 
+    request<{ success: boolean; categories: Array<{ id: string; name: string; path: string; icon: string; badge: string; color: string }> }>(`/api/phone-files/quick-categories?device_id=${encodeURIComponent(deviceId)}`),
+  
+  getPhoneStorageInfo: (deviceId = 'oppo') => 
+    request<{
+      success: boolean;
+      total_bytes: number;
+      used_bytes: number;
+      free_bytes: number;
+      total_gb: number;
+      used_gb: number;
+      free_gb: number;
+      used_percent: number;
+      breakdown?: {
+        images_bytes: number;
+        videos_bytes: number;
+        audio_bytes: number;
+        documents_bytes: number;
+        system_other_bytes: number;
+      };
+      has_all_files_access?: boolean;
+      is_cached?: boolean;
+    }>(`/api/phone-files/storage-info?device_id=${encodeURIComponent(deviceId)}`),
+
+  listPhoneFiles: (path = '/storage/emulated/0', deviceId = 'oppo') => {
+    const bridge = (window as any).AndroidBridge;
+    if (bridge && typeof bridge.listPhoneFiles === 'function') {
+      try {
+        const raw = bridge.listPhoneFiles(path);
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.success) return Promise.resolve(parsed);
+      } catch (_) {}
+    }
+    return request<FileListResponse & { is_cached?: boolean; note?: string }>(`/api/phone-files/list?path=${encodeURIComponent(path)}&device_id=${encodeURIComponent(deviceId)}`);
+  },
+
+  readPhoneFile: (path: string, deviceId = 'oppo') => {
+    const bridge = (window as any).AndroidBridge;
+    if (bridge && typeof bridge.readPhoneFile === 'function') {
+      try {
+        const raw = bridge.readPhoneFile(path);
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.success) return Promise.resolve(parsed);
+      } catch (_) {}
+    }
+    return request<FileReadResponse>(`/api/phone-files/read?path=${encodeURIComponent(path)}&device_id=${encodeURIComponent(deviceId)}`);
+  },
+
+  deletePhoneFile: (path: string, deviceId = 'oppo') => {
+    const bridge = (window as any).AndroidBridge;
+    if (bridge && typeof bridge.deletePhoneFile === 'function') {
+      const ok = bridge.deletePhoneFile(path);
+      if (ok) return Promise.resolve({ success: true, path, device_id: deviceId });
+    }
+    return request<{ success: boolean; path: string; device_id: string }>('/api/phone-files/delete', {
+      method: 'POST',
+      body: JSON.stringify({ path, device_id: deviceId })
+    });
+  },
+
+  createPhoneItem: (path: string, is_directory = false, deviceId = 'oppo') => {
+    const bridge = (window as any).AndroidBridge;
+    if (bridge && typeof bridge.createPhoneItem === 'function') {
+      const ok = bridge.createPhoneItem(path, is_directory);
+      if (ok) return Promise.resolve({ success: true, path, device_id: deviceId });
+    }
+    return request<{ success: boolean; path: string; device_id: string }>('/api/phone-files/create', {
+      method: 'POST',
+      body: JSON.stringify({ path, is_directory, device_id: deviceId })
+    });
+  },
+
+  writePhoneFile: (path: string, content: string, deviceId = 'oppo') => {
+    const bridge = (window as any).AndroidBridge;
+    if (bridge && typeof bridge.writePhoneFile === 'function') {
+      const ok = bridge.writePhoneFile(path, content);
+      if (ok) return Promise.resolve({ success: true, path, device_id: deviceId });
+    }
+    return request<{ success: boolean; path: string; device_id: string }>('/api/phone-files/write', {
+      method: 'POST',
+      body: JSON.stringify({ path, content, device_id: deviceId })
+    });
+  },
+
+  uploadPhoneFiles: async (path: string, files: File[] | FileList, deviceId = 'oppo') => {
+    const results: any[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const formData = new FormData();
+      formData.append('path', path);
+      formData.append('file', file);
+      formData.append('device_id', deviceId);
+      const res = await request<{ success: boolean; path: string }>('/api/phone-files/upload', {
+        method: 'POST',
+        body: formData
+      });
+      results.push(res);
+    }
+    return { success: true, count: results.length, uploaded: results };
+  },
+
+  bulkPhoneDownloadZip: async (paths: string[], deviceId = 'oppo') => {
+    if (!paths || paths.length === 0) return false;
+    const fileName = `phone_export_${Date.now()}.zip`;
+    const bridge = (window as any).AndroidBridge;
+
+    if (bridge && typeof bridge.downloadFile === 'function') {
+      const getUrl = `/api/phone-files/bulk-download-zip?paths=${encodeURIComponent(paths.join(','))}&device_id=${encodeURIComponent(deviceId)}`;
+      bridge.downloadFile(getUrl, fileName, 'application/zip');
+      return true;
+    }
+
+    const a = document.createElement('a');
+    a.href = `/api/phone-files/bulk-download-zip?paths=${encodeURIComponent(paths.join(','))}&device_id=${encodeURIComponent(deviceId)}`;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
+  },
 
 
   // Devices
@@ -301,12 +437,28 @@ export const api = {
   // Two-Way Camera (Laptop Webcam & Phone Camera to Kali Screen)
   getCameraStatus: () => request<{ laptop_camera_available: boolean; desktop_window_available: boolean; phone_streaming_active: boolean }>('/api/camera/status'),
   getLaptopCameraStreamUrl: () => '/api/camera/laptop/stream',
+  getPhoneCameraStreamUrl: () => '/api/camera/phone/stream',
+  getLaptopAudioStreamUrl: () => '/api/camera/laptop/audio',
+  getPhoneAudioStreamUrl: () => '/api/camera/phone/audio-stream',
+  getPhoneCameraStatus: () => request<{ camera_active: boolean; audio_active: boolean; fps: number; facing: string; torch: boolean }>('/api/camera/phone/status'),
+  controlPhoneCamera: (action: 'flip_camera' | 'toggle_torch' | 'start_camera' | 'stop_camera' | 'start_mic' | 'stop_mic') => request<{ success: boolean; [key: string]: any }>('/api/camera/phone/control', {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  }),
   sendPhoneCameraFrame: (image: string) => request<{ success: boolean }>('/api/camera/phone/frame', {
     method: 'POST',
     body: JSON.stringify({ image })
   }),
   stopPhoneCamera: () => request<{ success: boolean }>('/api/camera/phone/stop', {
     method: 'POST'
+  }),
+
+  // Mobile Screen Mirroring
+  getMobileScreenStatus: () => request<{ active: boolean; requested: boolean; fps: number; last_frame_sec: number | null }>('/api/remote/screen/mobile/status'),
+  getMobileScreenStreamUrl: () => '/api/remote/screen/mobile/stream',
+  controlMobileScreen: (action: 'start' | 'stop') => request<{ success: boolean; active: boolean; message: string }>('/api/remote/screen/mobile/control', {
+    method: 'POST',
+    body: JSON.stringify({ action })
   }),
 
   // CCTV 30-Minute Video Recording & Cloud Sync

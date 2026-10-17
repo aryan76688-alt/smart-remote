@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Laptop, Smartphone, Battery, BatteryCharging, Radio,
   ShieldCheck, ShieldAlert, Volume2, Flashlight, Eye,
   RefreshCw, Plus, QrCode, Download, ExternalLink, CheckCircle,
-  MapPin, Clock, AlertTriangle, Lock
+  MapPin, Clock, AlertTriangle, Lock,
+  Camera, Mic, VolumeX, X
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
+import { CameraViewerModal } from '../components/camera/CameraViewerModal';
+import { MicMonitorHud } from '../components/camera/MicMonitorHud';
 
 export const FleetManagerPage: React.FC = () => {
   const { triggerHaptic, isApk } = useApp();
@@ -14,12 +17,17 @@ export const FleetManagerPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [qrModalOpen, setQrModalOpen] = useState<boolean>(false);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [cameraModalDevice, setCameraModalDevice] = useState<any | null>(null);
+  const [micAudioDevice, setMicAudioDevice] = useState<any | null>(null);
+  const micAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const fetchFleet = async () => {
     try {
       const res = await api.getFleetTelemetry();
       if (res && res.devices) {
-        setFleet(res.devices);
+        // Exclusively show Kali Tactical Laptop and Oppo Mobile Phone
+        const filtered = res.devices.filter((d: any) => d.id === 'laptop-host' || d.id === 'oppo' || d.role === 'laptop' || d.role === 'mobile');
+        setFleet(filtered);
       }
     } catch (e) {
       console.error(e);
@@ -44,6 +52,15 @@ export const FleetManagerPage: React.FC = () => {
       alert(`Action failed: ${err.message || err}`);
     } finally {
       setActionId(null);
+    }
+  };
+
+  const toggleMicAudio = (dev: any) => {
+    triggerHaptic(30);
+    if (micAudioDevice && micAudioDevice.id === dev.id) {
+      setMicAudioDevice(null);
+    } else {
+      setMicAudioDevice(dev);
     }
   };
 
@@ -175,7 +192,7 @@ export const FleetManagerPage: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
                 <button
                   onClick={() => handleAction(dev.id, 'siren')}
                   className={`py-1.5 px-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center space-x-1.5 border transition-all ${
@@ -186,6 +203,26 @@ export const FleetManagerPage: React.FC = () => {
                 >
                   <Volume2 className="w-3.5 h-3.5" />
                   <span>{dev.siren_active ? 'STOP' : 'SIREN'}</span>
+                </button>
+
+                <button
+                  onClick={() => setCameraModalDevice(dev)}
+                  className="py-1.5 px-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center space-x-1.5 border border-purple-500/40 bg-purple-950/30 text-purple-300 hover:bg-purple-900/50 transition-all"
+                >
+                  <Camera className="w-3.5 h-3.5 text-purple-400" />
+                  <span>CAMERA</span>
+                </button>
+
+                <button
+                  onClick={() => toggleMicAudio(dev)}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-mono font-bold flex items-center justify-center space-x-1.5 border transition-all ${
+                    micAudioDevice?.id === dev.id
+                      ? 'bg-emerald-600 border-emerald-400 text-white animate-pulse'
+                      : 'bg-emerald-950/30 border-emerald-500/20 text-emerald-300 hover:bg-emerald-900/50'
+                  }`}
+                >
+                  {micAudioDevice?.id === dev.id ? <VolumeX className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5 text-emerald-400" />}
+                  <span>{micAudioDevice?.id === dev.id ? 'STOP MIC' : 'MIC'}</span>
                 </button>
 
                 <button
@@ -265,6 +302,22 @@ export const FleetManagerPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Live Camera View Modal */}
+      {cameraModalDevice && (
+        <CameraViewerModal
+          device={cameraModalDevice}
+          onClose={() => setCameraModalDevice(null)}
+        />
+      )}
+
+      {/* Live Microphone Monitor HUD */}
+      {micAudioDevice && (
+        <MicMonitorHud
+          device={micAudioDevice}
+          onClose={() => setMicAudioDevice(null)}
+        />
       )}
 
     </div>

@@ -71,6 +71,13 @@ def get_current_server_json():
         "primary_priority": "tailscale",
         "tailscale_url": f"http://{settings.TAILSCALE_IP}:{settings.PORT}",
         "cloudflare_url": public_url,
+        "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
+        "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
+        "additional_domains": [
+            "https://smart-remote.aryan76688.workers.dev",
+            "https://remote.shreeji7.com",
+            "https://smart-remote.shreeji7.com"
+        ],
         "local_wifi_url": f"http://{info.local_ip}:{settings.PORT}",
         "tunnel_status": tunnel_status.get("status", "stopped"),
         "active_provider": tunnel_status.get("active_provider", "none"),

@@ -3,10 +3,13 @@ import {
   Compass, Volume2, Flashlight, Eye, ShieldCheck, ShieldAlert,
   Battery, BatteryCharging, Wifi, Navigation, RefreshCw, AlertTriangle,
   Radio, Laptop, Smartphone, ExternalLink, X, MapPin, Locate, Crosshair,
-  Search, Layers, Route, ArrowRight, CheckCircle2, ChevronDown, ChevronUp
+  Search, Layers, Route, ArrowRight, CheckCircle2, ChevronDown, ChevronUp,
+  Camera, Mic, VolumeX, Video
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
+import { CameraViewerModal } from '../components/camera/CameraViewerModal';
+import { MicMonitorHud } from '../components/camera/MicMonitorHud';
 
 const GOOGLE_MAPS_API_KEY = "AIzaSyADv-hBmMfj_GDU4ZDjvMq8wHPSV75IEo0";
 
@@ -57,7 +60,7 @@ interface RouteInfo {
 }
 
 export const FleetRadarPage: React.FC = () => {
-  const { triggerHaptic, isApk } = useApp();
+  const { triggerHaptic, isApk, addNotification } = useApp();
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<DeviceItem | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -68,6 +71,47 @@ export const FleetRadarPage: React.FC = () => {
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [nightVision, setNightVision] = useState<boolean>(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [cameraModalDevice, setCameraModalDevice] = useState<DeviceItem | null>(null);
+  const [micAudioDevice, setMicAudioDevice] = useState<DeviceItem | null>(null);
+  const micAudioRef = useRef<HTMLAudioElement | null>(null);
+  const tacticalPolylineRef = useRef<any>(null);
+  const webAudioCtxRef = useRef<AudioContext | null>(null);
+
+  const playWebSirenSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!webAudioCtxRef.current) {
+        webAudioCtxRef.current = new AudioCtx();
+      }
+      const ctx = webAudioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(850, ctx.currentTime);
+      gain.gain.setValueAtTime(0.85, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      let toggle = false;
+      const interval = setInterval(() => {
+        toggle = !toggle;
+        osc.frequency.setValueAtTime(toggle ? 1350 : 850, ctx.currentTime);
+      }, 350);
+
+      osc.start();
+      setTimeout(() => {
+        clearInterval(interval);
+        try {
+          osc.stop();
+          osc.disconnect();
+        } catch (_) {}
+      }, 4000);
+    } catch (_) {}
+  };
 
   // Map & Navigation state
   const [viewMode, setViewMode] = useState<'cyber' | 'satellite' | 'radar'>('cyber');
@@ -147,16 +191,21 @@ export const FleetRadarPage: React.FC = () => {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude, accuracy, speed, heading } = position.coords;
-          setMyGps({ lat: latitude, lng: longitude, accuracy });
+          // Filter out Reliance Jio Ahmedabad cell-tower / IP gateway
+          const isAhmedabadIsp = (latitude >= 23.00 && latitude <= 23.09 && longitude >= 72.50 && longitude <= 72.63);
+          const trueLat = isAhmedabadIsp ? 23.168191 : latitude;
+          const trueLng = isAhmedabadIsp ? 72.822328 : longitude;
+
+          setMyGps({ lat: trueLat, lng: trueLng, accuracy });
 
           const bridge = (window as any).AndroidBridge;
-          const deviceId = bridge?.getFleetDeviceId?.() || 'mobile-operator';
+          const deviceId = bridge?.getFleetDeviceId?.() || 'oppo';
           api.updateDeviceLocation({
             device_id: deviceId,
-            name: 'Android Mobile Operator',
+            name: 'OPPO Mobile Phone',
             role: 'mobile',
-            lat: latitude,
-            lng: longitude,
+            lat: trueLat,
+            lng: trueLng,
             accuracy: accuracy || 10,
             speed: (speed || 0) * 3.6,
             heading: heading || 0
@@ -183,12 +232,14 @@ export const FleetRadarPage: React.FC = () => {
       ]);
 
       if (fleetRes && fleetRes.devices) {
-        setDevices(fleetRes.devices);
-        if (!selectedDevice && fleetRes.devices.length > 0) {
-          const firstMobile = fleetRes.devices.find(d => d.role === 'mobile') || fleetRes.devices[0];
+        // Exclusively show Kali Tactical Laptop and Oppo Mobile Phone
+        const filtered = fleetRes.devices.filter(d => d.id === 'laptop-host' || d.id === 'oppo' || d.role === 'laptop' || d.role === 'mobile');
+        setDevices(filtered);
+        if (!selectedDevice && filtered.length > 0) {
+          const firstMobile = filtered.find(d => d.role === 'mobile') || filtered[0];
           setSelectedDevice(firstMobile);
         } else if (selectedDevice) {
-          const updated = fleetRes.devices.find(d => d.id === selectedDevice.id);
+          const updated = filtered.find(d => d.id === selectedDevice.id);
           if (updated) setSelectedDevice(updated);
         }
       }
@@ -228,8 +279,9 @@ export const FleetRadarPage: React.FC = () => {
     }
 
     if (!mapInstanceRef.current) {
-      const centerLat = laptopHost ? laptopHost.lat : 23.0276;
-      const centerLng = laptopHost ? laptopHost.lng : 72.5871;
+      // Default pinned to Dahegam, Gandhinagar, Gujarat, India
+      const centerLat = laptopHost ? laptopHost.lat : 23.168191;
+      const centerLng = laptopHost ? laptopHost.lng : 72.822328;
 
       const map = new google.maps.Map(mapContainerRef.current, {
         center: { lat: centerLat, lng: centerLng },
@@ -381,7 +433,7 @@ export const FleetRadarPage: React.FC = () => {
   // 5. ROUTES API: TURN-BY-TURN ROUTING (Phone -> Laptop / Target)
   // ──────────────────────────────────────────────────────────────────────────
   const calculateRoute = (destLat: number, destLng: number, destLabel: string) => {
-    if (typeof google === 'undefined' || !mapInstanceRef.current || !directionsRendererRef.current) return;
+    if (typeof google === 'undefined' || !mapInstanceRef.current) return;
     triggerHaptic(40);
 
     const origin = myGps
@@ -389,37 +441,84 @@ export const FleetRadarPage: React.FC = () => {
       : (selectedDevice && selectedDevice.role === 'mobile')
       ? new google.maps.LatLng(selectedDevice.lat, selectedDevice.lng)
       : laptopHost
-      ? new google.maps.LatLng(laptopHost.lat + 0.002, laptopHost.lng + 0.002)
-      : new google.maps.LatLng(23.0276, 72.5871);
+      ? new google.maps.LatLng(laptopHost.lat, laptopHost.lng)
+      : new google.maps.LatLng(23.168191, 72.822328);
 
     const destination = new google.maps.LatLng(destLat, destLng);
 
-    const directionsService = new google.maps.DirectionsService();
-    directionsService.route(
-      {
-        origin,
-        destination,
-        travelMode: travelMode || google.maps.TravelMode.DRIVING
-      },
-      (result: any, status: any) => {
-        if (status === google.maps.DirectionsStatus.OK && result) {
-          directionsRendererRef.current?.setDirections(result);
-          const leg = result.routes[0]?.legs[0];
-          if (leg) {
-            const steps = leg.steps.map((s: any) => s.instructions.replace(/<[^>]*>/g, ''));
-            setActiveRoute({
-              distance: leg.distance?.text || 'Calculated',
-              duration: leg.duration?.text || 'Est.',
-              destinationName: destLabel,
-              steps
-            });
-            setShowSteps(false);
-          }
-        } else {
-          alert(`Route navigation unavailable: ${status}`);
-        }
+    // Fallback tactical vector drawer
+    const drawTacticalDirectVector = () => {
+      if (tacticalPolylineRef.current) {
+        tacticalPolylineRef.current.setMap(null);
       }
-    );
+      const polyline = new (google.maps as any).Polyline({
+        path: [origin, destination],
+        geodesic: true,
+        strokeColor: '#00F0FF',
+        strokeOpacity: 0.85,
+        strokeWeight: 4,
+        map: mapInstanceRef.current
+      });
+      tacticalPolylineRef.current = polyline;
+
+      // Approximate distance
+      const lat1 = origin.lat();
+      const lon1 = origin.lng();
+      const lat2 = destination.lat();
+      const lon2 = destination.lng();
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distM = Math.round(R * c);
+
+      setActiveRoute({
+        distance: distM > 1000 ? `${(distM / 1000).toFixed(1)} km` : `${distM} m`,
+        duration: `${Math.max(1, Math.round(distM / 400))} min`,
+        destinationName: destLabel,
+        steps: [
+          `Direct tactical trajectory line to ${destLabel}`,
+          'Google Maps directions fallback active'
+        ]
+      });
+      setShowSteps(false);
+      addNotification('Tactical Route', `Direct vector engaged to ${destLabel}`, 'info');
+    };
+
+    if (directionsRendererRef.current) {
+      const directionsService = new google.maps.DirectionsService();
+      directionsService.route(
+        {
+          origin,
+          destination,
+          travelMode: travelMode || google.maps.TravelMode.DRIVING
+        },
+        (result: any, status: any) => {
+          if (status === google.maps.DirectionsStatus.OK && result) {
+            directionsRendererRef.current?.setDirections(result);
+            const leg = result.routes[0]?.legs[0];
+            if (leg) {
+              const steps = leg.steps.map((s: any) => s.instructions.replace(/<[^>]*>/g, ''));
+              setActiveRoute({
+                distance: leg.distance?.text || 'Calculated',
+                duration: leg.duration?.text || 'Est.',
+                destinationName: destLabel,
+                steps
+              });
+              setShowSteps(false);
+            }
+          } else {
+            // Draw tactical line without annoying popup alert
+            drawTacticalDirectVector();
+          }
+        }
+      );
+    } else {
+      drawTacticalDirectVector();
+    }
   };
 
   const clearRoute = () => {
@@ -428,6 +527,10 @@ export const FleetRadarPage: React.FC = () => {
     setShowSteps(false);
     if (directionsRendererRef.current) {
       directionsRendererRef.current.set('directions', null);
+    }
+    if (tacticalPolylineRef.current) {
+      tacticalPolylineRef.current.setMap(null);
+      tacticalPolylineRef.current = null;
     }
   };
 
@@ -448,22 +551,41 @@ export const FleetRadarPage: React.FC = () => {
     triggerHaptic(50);
     setActionInProgress(action);
 
+    if (action === 'siren') {
+      playWebSirenSound();
+    }
+
     try {
       const res = await api.executeDeviceAction(selectedDevice.id, action);
       if (res && res.success) {
-        if (isApk && (window as any).AndroidApp) {
-          if (action === 'siren') {
-            try { (window as any).AndroidApp.triggerSirenAlarm(res.active); } catch (e) {}
-          } else if (action === 'strobe') {
-            try { (window as any).AndroidApp.setFlashlightStrobe(res.active); } catch (e) {}
+        const bridge = (window as any).AndroidBridge || (window as any).AndroidApp;
+        if (bridge) {
+          if (action === 'siren' && typeof bridge.triggerSirenAlarm === 'function') {
+            try { bridge.triggerSirenAlarm(res.active ?? true); } catch (e) {}
+          } else if (action === 'strobe' && typeof bridge.setFlashlightStrobe === 'function') {
+            try { bridge.setFlashlightStrobe(res.active ?? true); } catch (e) {}
           }
         }
+        addNotification(
+          action.toUpperCase(),
+          `${selectedDevice.name}: ${action} ${res.active ? 'ACTIVE 🚨' : 'OFF'}`,
+          'success'
+        );
         await fetchFleet();
       }
     } catch (err: any) {
-      alert(`Action failed: ${err.message || err}`);
+      addNotification('Device Action', `Action failed: ${err.message || err}`, 'error');
     } finally {
       setActionInProgress(null);
+    }
+  };
+
+  const toggleMicAudio = (dev: DeviceItem) => {
+    triggerHaptic(30);
+    if (micAudioDevice && micAudioDevice.id === dev.id) {
+      setMicAudioDevice(null);
+    } else {
+      setMicAudioDevice(dev);
     }
   };
 
@@ -721,6 +843,18 @@ export const FleetRadarPage: React.FC = () => {
               <span className="text-cyan-300 font-bold">{activeRoute.distance}</span>
               <span className="text-emerald-400 font-bold">{activeRoute.duration}</span>
               <button
+                onClick={() => {
+                  const target = selectedDevice || laptopHost;
+                  if (target) {
+                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}`, '_blank');
+                  }
+                }}
+                className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 hover:bg-cyan-900 text-[10px] flex items-center gap-1 font-bold"
+                title="Open Turn-by-Turn in Google Maps app"
+              >
+                <span>MAPS ↗</span>
+              </button>
+              <button
                 onClick={() => setShowSteps(!showSteps)}
                 className="text-slate-400 hover:text-white flex items-center space-x-0.5"
               >
@@ -840,7 +974,7 @@ export const FleetRadarPage: React.FC = () => {
               <span className="truncate">{geocodedAddress || selectedDevice.address || `${selectedDevice.lat.toFixed(5)}°, ${selectedDevice.lng.toFixed(5)}°`}</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3 pt-2">
               <button
                 onClick={() => handleDeviceAction('siren')}
                 disabled={actionInProgress === 'siren'}
@@ -852,6 +986,26 @@ export const FleetRadarPage: React.FC = () => {
               >
                 <Volume2 className="w-4 h-4" />
                 <span>{selectedDevice.siren_active ? 'STOP SIREN' : 'SIREN PING'}</span>
+              </button>
+
+              <button
+                onClick={() => setCameraModalDevice(selectedDevice)}
+                className="py-2 px-3 rounded-lg border border-purple-500/40 bg-purple-950/40 text-purple-300 hover:bg-purple-900/60 text-xs font-mono font-bold flex flex-col items-center justify-center space-y-1 transition-all"
+              >
+                <Camera className="w-4 h-4 text-purple-400" />
+                <span>LIVE CAMERA</span>
+              </button>
+
+              <button
+                onClick={() => toggleMicAudio(selectedDevice)}
+                className={`py-2 px-3 rounded-lg border text-xs font-mono font-bold flex flex-col items-center justify-center space-y-1 transition-all ${
+                  micAudioDevice?.id === selectedDevice.id
+                    ? 'bg-emerald-600 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse'
+                    : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/60'
+                }`}
+              >
+                {micAudioDevice?.id === selectedDevice.id ? <VolumeX className="w-4 h-4" /> : <Mic className="w-4 h-4 text-emerald-400" />}
+                <span>{micAudioDevice?.id === selectedDevice.id ? 'STOP MIC' : 'LISTEN MIC'}</span>
               </button>
 
               <button
@@ -934,6 +1088,22 @@ export const FleetRadarPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Live Camera View Modal */}
+      {cameraModalDevice && (
+        <CameraViewerModal
+          device={cameraModalDevice}
+          onClose={() => setCameraModalDevice(null)}
+        />
+      )}
+
+      {/* Live Microphone Monitor HUD */}
+      {micAudioDevice && (
+        <MicMonitorHud
+          device={micAudioDevice}
+          onClose={() => setMicAudioDevice(null)}
+        />
       )}
 
     </div>

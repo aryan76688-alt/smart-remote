@@ -144,6 +144,33 @@ class N8nService:
                 success = camera_manager.take_snapshot()
                 return {"success": success, "action": "cctv_snapshot"}
 
+            elif action == "siren":
+                from app.services.intercom_service import intercom_service
+                intercom_service.start_emergency_siren(params.get("duration", 30))
+                return {"success": True, "action": "siren", "message": "Emergency siren started on laptop speakers"}
+
+            elif action == "stop_siren":
+                from app.services.intercom_service import intercom_service
+                intercom_service.stop_emergency_siren()
+                return {"success": True, "action": "stop_siren", "message": "Emergency siren stopped"}
+
+            elif action == "notify":
+                title = params.get("title", "Smart Remote Automation")
+                msg = params.get("message", "n8n automated action triggered")
+                subprocess.Popen(["notify-send", title, msg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return {"success": True, "action": "notify"}
+
+            elif action == "unlock":
+                from app.input.controller import input_controller
+                input_controller.unlock_screen()
+                return {"success": True, "action": "unlock", "message": "Workstation awakened and unlocked"}
+
+            elif action == "media":
+                media_act = params.get("media_action", "play_pause")
+                from app.input.controller import input_controller
+                input_controller.media_action(media_act)
+                return {"success": True, "action": "media", "media_action": media_act}
+
             elif action == "command":
                 cmd = params.get("command")
                 if not cmd:

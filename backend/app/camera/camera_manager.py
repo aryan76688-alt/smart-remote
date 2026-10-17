@@ -122,11 +122,20 @@ class CameraManager:
         self.camera_height = 720
         self.camera_fps = 30
 
-        # Phone camera state
+        # Phone camera & audio state
         self.phone_lock = threading.Lock()
         self.last_phone_frame: Optional[bytes] = None
         self.last_phone_update = 0.0
         self.phone_streaming_active = False
+        self.phone_facing: str = "back"
+        self.phone_torch: bool = False
+        self.phone_fps: float = 0.0
+        self.phone_frame_count: int = 0
+        self._phone_fps_tracker: List[float] = []
+        self.phone_audio_lock = threading.Lock()
+        self.phone_audio_buffer: List[bytes] = []
+        self.last_phone_audio_time = 0.0
+        self.phone_audio_active = False
 
         # Kali desktop window thread for phone camera feed
         self.tk_root = None
@@ -1148,11 +1157,11 @@ class CameraManager:
             print(f"[AUDIO] Microphone config notice: {e}")
 
     def audio_stream_generator(self, denoise: Optional[bool] = None) -> Generator[bytes, None, None]:
-        """Real-time live audio stream from Kali Linux laptop microphone.
-        Direct, uncompressed, crystal clear microphone capture with zero noise suppression delay."""
+        """Real-time live audio stream from Kali Linux laptop microphone using MP3 for universal browser support.
+        Self-contained frames allow any browser, mobile, or desktop to play immediately with zero header issues."""
         self._ensure_microphone_configured()
 
-        # Build device candidates: shared_mic first (allows concurrent streaming + recording), then default, dsnoop0, plughw
+        # Device candidates: shared_mic first (dsnoop allows concurrent reading with CCTV), then default, dsnoop0, plughw:0,0
         device_candidates = [
             ("-f", "alsa", "shared_mic"),
             ("-f", "alsa", "default"),
@@ -1165,22 +1174,16 @@ class CameraManager:
             cmd = [
                 "ffmpeg",
                 "-nostdin",
-                "-loglevel", "warning",
+                "-loglevel", "error",
                 fmt_flag, fmt,
                 "-i", device,
                 "-ac", "1",
-                "-ar", "48000",
-                "-af", "volume=2.5",
-                "-c:a", "libopus",
-                "-b:a", "64k",
-                "-vbr", "on",
-                "-compression_level", "5",
-                "-frame_duration", "20",
-                "-application", "voip",
+                "-ar", "44100",
+                "-af", "volume=2.2",
+                "-c:a", "libmp3lame",
+                "-b:a", "128k",
+                "-f", "mp3",
                 "-flush_packets", "1",
-                "-fflags", "nobuffer",
-                "-flags", "low_delay",
-                "-f", "webm",
                 "pipe:1"
             ]
             return cmd
@@ -1202,15 +1205,15 @@ class CameraManager:
                     )
                     fd = proc.stdout.fileno()
                     # Read first chunk to verify device opened successfully
-                    first_chunk = os.read(fd, 512)
+                    first_chunk = os.read(fd, 1024)
                     if not first_chunk:
                         err = proc.stderr.read(200)
                         print(f"[AUDIO] Device {device} gave no data: {err.decode(errors='ignore').strip()}")
                         proc.kill()
                         proc.wait()
                         continue
-                    # Device works — yield and keep streaming
-                    print(f"[AUDIO] Streaming mic via {fmt}:{device}")
+                    # Device works — yield and keep streaming MP3
+                    print(f"[AUDIO] Streaming MP3 mic via {fmt}:{device}")
                     started = True
                     yield first_chunk
                     while True:
@@ -1245,7 +1248,7 @@ class CameraManager:
                 print(f"[AUDIO] No working mic device found (attempt {retry_count}/{max_retries}), retrying in 1s...")
                 time.sleep(1.0)
             else:
-                retry_count += 1  # Allow re-streaming if stream ended
+                retry_count += 1
                 time.sleep(0.1)
 
 
@@ -1977,12 +1980,126 @@ class CameraManager:
     # =========================================================================
     # 3. PHONE CAMERA -> KALI LINUX LAPTOP DISPLAY WINDOW
     # =========================================================================
-    def receive_phone_frame(self, jpeg_bytes: bytes):
+    def receive_phone_frame(self, jpeg_bytes: bytes, facing: str = "back", torch: bool = False):
+        now = time.time()
         with self.phone_lock:
             self.last_phone_frame = jpeg_bytes
-            self.last_phone_update = time.time()
+            self.last_phone_update = now
             self.phone_streaming_active = True
-        self._ensure_tk_viewer()
+            self.phone_facing = facing
+            self.phone_torch = torch
+            self.phone_frame_count += 1
+            self._phone_fps_tracker.append(now)
+            self._phone_fps_tracker = [t for t in self._phone_fps_tracker if now - t <= 2.0]
+            self.phone_fps = round(len(self._phone_fps_tracker) / 2.0, 1)
+
+    def get_latest_phone_frame(self) -> Optional[bytes]:
+        with self.phone_lock:
+            if self.last_phone_frame and (time.time() - self.last_phone_update < 6.0):
+                return self.last_phone_frame
+        return None
+
+    def phone_stream_generator(self):
+        """Streams live mobile camera frames as MJPEG to web browser/dashboard."""
+        while True:
+            frame = None
+            with self.phone_lock:
+                if self.last_phone_frame and (time.time() - self.last_phone_update < 5.0):
+                    frame = self.last_phone_frame
+
+            if frame:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
+                time.sleep(0.035)
+            else:
+                err_frame = self._generate_error_frame("OPPO Mobile Camera Standby")
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + err_frame + b"\r\n"
+                )
+                time.sleep(0.1)
+
+    def receive_phone_audio_chunk(self, data: bytes):
+        """Receives live microphone audio chunk from mobile phone (PCM 16-bit mono 16kHz)."""
+        now = time.time()
+        with self.phone_audio_lock:
+            self.phone_audio_buffer.append(data)
+            if len(self.phone_audio_buffer) > 100:
+                self.phone_audio_buffer.pop(0)
+            self.last_phone_audio_time = now
+            self.phone_audio_active = True
+
+    def phone_audio_stream_generator(self):
+        """Streams continuous live audio from mobile phone microphone encoded on-the-fly as MP3 for all browsers."""
+        cmd = [
+            "ffmpeg",
+            "-nostdin",
+            "-loglevel", "error",
+            "-f", "s16le",
+            "-ar", "16000",
+            "-ac", "1",
+            "-i", "pipe:0",
+            "-af", "volume=2.2",
+            "-c:a", "libmp3lame",
+            "-b:a", "64k",
+            "-flush_packets", "1",
+            "-f", "mp3",
+            "pipe:1"
+        ]
+        proc = None
+        stop_feeder = threading.Event()
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                bufsize=0
+            )
+
+            def feed_worker():
+                silence = b"\x00\x00" * 320  # 20ms silence (16kHz 16-bit)
+                while not stop_feeder.is_set():
+                    chunk = None
+                    with self.phone_audio_lock:
+                        if self.phone_audio_buffer:
+                            chunk = self.phone_audio_buffer.pop(0)
+                    try:
+                        if chunk and proc and proc.stdin:
+                            proc.stdin.write(chunk)
+                            proc.stdin.flush()
+                        else:
+                            # Send silence if recent audio active to maintain MP3 framing
+                            if proc and proc.stdin and (time.time() - self.last_phone_audio_time < 3.0):
+                                proc.stdin.write(silence)
+                                proc.stdin.flush()
+                            time.sleep(0.02)
+                    except Exception:
+                        break
+
+            feeder = threading.Thread(target=feed_worker, daemon=True)
+            feeder.start()
+
+            fd = proc.stdout.fileno()
+            while True:
+                chunk = os.read(fd, 1024)
+                if not chunk:
+                    break
+                yield chunk
+        except Exception as e:
+            print(f"[PHONE-AUDIO] Transcoding exception: {e}")
+        finally:
+            stop_feeder.set()
+            if proc:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=0.5)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
 
     def stop_phone_stream(self):
         with self.phone_lock:

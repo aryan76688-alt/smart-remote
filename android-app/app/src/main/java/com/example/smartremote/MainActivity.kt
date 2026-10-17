@@ -32,9 +32,29 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CaptureRequest
+import androidx.core.app.ActivityCompat
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.AudioTrack
+import android.media.MediaPlayer
+import android.media.MediaRecorder
+import android.media.RingtoneManager
+import android.media.ImageReader
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.graphics.PixelFormat
+import android.graphics.ImageFormat
 import android.os.BatteryManager
+import android.provider.Settings
 import android.text.format.Formatter
 import android.view.Gravity
 import android.view.View
@@ -42,6 +62,9 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.*
 import android.widget.*
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,8 +74,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import org.json.JSONObject
-import java.io.File
-import java.io.FileOutputStream
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CopyOnWriteArrayList
@@ -77,6 +99,9 @@ class MainActivity : ComponentActivity() {
 
     private val TAILSCALE_DEFAULT_URL = "http://100.69.194.11:7070"
     private val LOCAL_WIFI_DEFAULT_URL = "http://192.168.31.141:7070"
+    private val CLOUDFLARE_CUSTOM_DOMAIN_URL = "https://remote.shreeji7.com"
+    private val CLOUDFLARE_CUSTOM_ALIAS_URL = "https://smart-remote.shreeji7.com"
+    private val CLOUDFLARE_WORKER_URL = "https://smart-remote.aryan76688.workers.dev"
     private val GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/aryan76688-alt/smart-remote/main/current_server.json"
 
     // First server priority: Tailscale IP
@@ -96,32 +121,45 @@ class MainActivity : ComponentActivity() {
     private var powerReceiver: android.content.BroadcastReceiver? = null
 
     private var locationManager: LocationManager? = null
-    private var lastLatitude: Double = 23.0276
-    private var lastLongitude: Double = 72.5871
+    private var lastLatitude: Double = 23.168191
+    private var lastLongitude: Double = 72.822328
     private var lastAccuracy: Float = 10.0f
     private var lastSpeed: Float = 0.0f
     private var lastHeading: Float = 0.0f
     private var toneGenerator: ToneGenerator? = null
     private val isSirenRunning = AtomicBoolean(false)
+    private var sirenPlayer: MediaPlayer? = null
+    private var sirenAudioTrack: AudioTrack? = null
     private val isStrobeRunning = AtomicBoolean(false)
     private var cameraManager: CameraManager? = null
     private var rearCameraId: String? = null
     private var uniqueDeviceId: String? = null
     private val isLocationTrackingStarted = AtomicBoolean(false)
 
+    // Mobile mic native streaming
+    private val isNativeAudioStreaming = AtomicBoolean(false)
+    private var nativeAudioRecord: AudioRecord? = null
+
+    // Mobile camera native streaming
+    private val isNativeCameraStreaming = AtomicBoolean(false)
+    private var nativeCameraDevice: CameraDevice? = null
+    private var nativeCameraSession: CameraCaptureSession? = null
+    private var nativeCameraReader: ImageReader? = null
+    private var currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
+    private val latestCameraJpeg = java.util.concurrent.atomic.AtomicReference<ByteArray?>()
+
+    // Mobile screen mirroring
+    private var mediaProjectionManager: MediaProjectionManager? = null
+    private var mediaProjection: MediaProjection? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    private var screenImageReader: ImageReader? = null
+    private val isScreenMirrorActive = AtomicBoolean(false)
+
     private fun getUniqueDeviceId(): String {
-        if (uniqueDeviceId != null) return uniqueDeviceId!!
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var id = prefs.getString("unique_fleet_id", null)
-        if (id == null) {
-            id = "phone-" + java.util.UUID.randomUUID().toString().substring(0, 8)
-            prefs.edit().putString("unique_fleet_id", id).apply()
-        }
-        uniqueDeviceId = id
-        return id
+        return "oppo"
     }
 
-    private fun setupLocationTracking() {
+    private fun registerLocationListeners() {
         try {
             locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             val hasFine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -129,9 +167,16 @@ class MainActivity : ComponentActivity() {
             if (hasFine || hasCoarse) {
                 val listener = object : LocationListener {
                     override fun onLocationChanged(loc: Location) {
-                        lastLatitude = loc.latitude
-                        lastLongitude = loc.longitude
-                        lastAccuracy = loc.accuracy
+                        val isAhmedabadIsp = (loc.latitude in 23.00..23.09 && loc.longitude in 72.50..72.63)
+                        if (isAhmedabadIsp && loc.provider != LocationManager.GPS_PROVIDER) {
+                            lastLatitude = 23.168191
+                            lastLongitude = 72.822328
+                            lastAccuracy = 10.0f
+                        } else {
+                            lastLatitude = loc.latitude
+                            lastLongitude = loc.longitude
+                            lastAccuracy = loc.accuracy
+                        }
                         lastSpeed = loc.speed * 3.6f
                         lastHeading = loc.bearing
                     }
@@ -140,22 +185,36 @@ class MainActivity : ComponentActivity() {
                     override fun onProviderDisabled(provider: String) {}
                 }
                 try {
-                    locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000L, 5f, listener)
+                    locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 0.5f, listener)
                 } catch (_: Exception) {}
                 try {
-                    locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000L, 5f, listener)
+                    locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000L, 0.5f, listener)
+                } catch (_: Exception) {}
+                try {
+                    locationManager?.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 2000L, 0.5f, listener)
                 } catch (_: Exception) {}
                 val lastKnown = try {
                     locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                         ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
                 } catch (_: Exception) { null }
                 lastKnown?.let {
-                    lastLatitude = it.latitude
-                    lastLongitude = it.longitude
-                    lastAccuracy = it.accuracy
+                    val isAhmedabadIsp = (it.latitude in 23.00..23.09 && it.longitude in 72.50..72.63)
+                    if (isAhmedabadIsp && it.provider != LocationManager.GPS_PROVIDER) {
+                        lastLatitude = 23.168191
+                        lastLongitude = 72.822328
+                        lastAccuracy = 10.0f
+                    } else {
+                        lastLatitude = it.latitude
+                        lastLongitude = it.longitude
+                        lastAccuracy = it.accuracy
+                    }
                 }
             }
         } catch (_: Exception) {}
+    }
+
+    private fun setupLocationTracking() {
+        registerLocationListeners()
 
         try {
             cameraManager = getSystemService(Context.CAMERA_SERVICE) as? CameraManager
@@ -168,8 +227,9 @@ class MainActivity : ComponentActivity() {
             executor.execute {
                 while (!isDestroyed && !isFinishing) {
                     try {
-                        Thread.sleep(8000)
+                        Thread.sleep(2500)
                         reportFleetTelemetry()
+                        pollAndProcessPhoneFileTasks()
                     } catch (_: Exception) {}
                 }
             }
@@ -190,7 +250,7 @@ class MainActivity : ComponentActivity() {
             }
             val json = JSONObject().apply {
                 put("device_id", getUniqueDeviceId())
-                put("name", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
+                put("name", "Oppo Mobile Phone (${Build.MODEL})".trim())
                 put("model", Build.MODEL)
                 put("role", "mobile")
                 put("lat", lastLatitude)
@@ -203,6 +263,208 @@ class MainActivity : ComponentActivity() {
             }
             conn.outputStream.use { os ->
                 os.write(json.toString().toByteArray())
+            }
+            val respCode = conn.responseCode
+            if (respCode == 200) {
+                val respText = conn.inputStream.bufferedReader().use { it.readText() }
+                val respJson = JSONObject(respText)
+                val actions = respJson.optJSONObject("actions")
+                if (actions != null) {
+                    val shouldSiren = actions.optBoolean("siren", false)
+                    if (shouldSiren != isSirenRunning.get()) {
+                        playSirenAlarm(shouldSiren)
+                    }
+                    val shouldStrobe = actions.optBoolean("strobe", false)
+                    if (shouldStrobe != isStrobeRunning.get()) {
+                        setFlashlightStrobe(shouldStrobe)
+                    }
+                    val shouldCam = actions.optBoolean("camera", false)
+                    if (shouldCam != isNativeCameraStreaming.get()) {
+                        toggleNativeCameraStreaming(shouldCam)
+                    }
+                    val shouldMic = actions.optBoolean("mic", false)
+                    if (shouldMic != isNativeAudioStreaming.get()) {
+                        toggleNativeAudioStreaming(shouldMic)
+                    }
+                    val shouldMirror = actions.optBoolean("mirror", false)
+                    if (shouldMirror && !isScreenMirrorActive.get()) {
+                        runOnUiThread { startMobileScreenMirror() }
+                    } else if (!shouldMirror && isScreenMirrorActive.get()) {
+                        runOnUiThread { stopScreenCapture() }
+                    }
+                }
+            }
+            conn.disconnect()
+        } catch (_: Exception) {}
+    }
+
+    private fun pollAndProcessPhoneFileTasks() {
+        try {
+            val server = activeServerUrl
+            if (server.isEmpty()) return
+            val url = URL("$server/api/phone-files/poll?device_id=oppo")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 3000
+                readTimeout = 3000
+            }
+            if (conn.responseCode == 200) {
+                val respText = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(respText)
+                if (json.optBoolean("has_task", false)) {
+                    val task = json.optJSONObject("task")
+                    if (task != null) {
+                        executor.execute { executeRemotePhoneTask(server, task) }
+                    }
+                }
+            }
+            conn.disconnect()
+        } catch (_: Exception) {}
+    }
+
+    private fun executeRemotePhoneTask(server: String, task: JSONObject) {
+        try {
+            val taskId = task.optString("task_id")
+            val action = task.optString("action")
+            val payload = task.optJSONObject("payload") ?: JSONObject()
+
+            when (action) {
+                "get_storage" -> {
+                    val res = PhoneFileManager.getStorageStats()
+                    sendTaskResult(server, taskId, res)
+                }
+                "list_dir" -> {
+                    val path = payload.optString("path", "")
+                    val res = PhoneFileManager.listDirectory(path)
+                    sendTaskResult(server, taskId, res)
+                }
+                "read_file" -> {
+                    val path = payload.optString("path", "")
+                    val res = PhoneFileManager.readFile(path)
+                    sendTaskResult(server, taskId, res)
+                }
+                "delete_item" -> {
+                    val path = payload.optString("path", "")
+                    val ok = PhoneFileManager.deleteItem(path)
+                    val res = JSONObject().apply {
+                        put("success", ok)
+                        put("path", path)
+                    }
+                    sendTaskResult(server, taskId, res)
+                }
+                "create_item" -> {
+                    val path = payload.optString("path", "")
+                    val isDir = payload.optBoolean("is_directory", false)
+                    val ok = PhoneFileManager.createItem(path, isDir)
+                    val res = JSONObject().apply {
+                        put("success", ok)
+                        put("path", path)
+                    }
+                    sendTaskResult(server, taskId, res)
+                }
+                "write_file" -> {
+                    val path = payload.optString("path", "")
+                    val content = payload.optString("content", "")
+                    val ok = PhoneFileManager.writeFile(path, content)
+                    val res = JSONObject().apply {
+                        put("success", ok)
+                        put("path", path)
+                    }
+                    sendTaskResult(server, taskId, res)
+                }
+                "download_file" -> {
+                    val path = payload.optString("path", "")
+                    val file = File(path)
+                    if (file.exists()) {
+                        val uploadUrl = URL("$server/api/phone-files/upload-file/$taskId")
+                        val conn = (uploadUrl.openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = 8000
+                            readTimeout = 15000
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/octet-stream")
+                        }
+                        conn.outputStream.use { os ->
+                            if (file.isDirectory) {
+                                PhoneFileManager.exportToZip(listOf(file.absolutePath), os)
+                            } else {
+                                FileInputStream(file).use { it.copyTo(os) }
+                            }
+                        }
+                        conn.responseCode
+                        conn.disconnect()
+                    } else {
+                        sendTaskResult(server, taskId, JSONObject().apply {
+                            put("success", false)
+                            put("error", "File not found")
+                        })
+                    }
+                }
+                "bulk_download_zip" -> {
+                    val pathsJson = payload.optJSONArray("paths") ?: JSONArray()
+                    val pathList = mutableListOf<String>()
+                    for (i in 0 until pathsJson.length()) {
+                        pathList.add(pathsJson.getString(i))
+                    }
+                    val uploadUrl = URL("$server/api/phone-files/upload-file/$taskId")
+                    val conn = (uploadUrl.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 8000
+                        readTimeout = 25000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/zip")
+                    }
+                    conn.outputStream.use { os ->
+                        PhoneFileManager.exportToZip(pathList, os)
+                    }
+                    conn.responseCode
+                    conn.disconnect()
+                }
+                "pull_upload" -> {
+                    val fileId = payload.optString("file_id")
+                    val targetPath = payload.optString("target_path")
+                    val downloadUrl = URL("$server/api/phone-files/staged-file/$fileId")
+                    val conn = (downloadUrl.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 5000
+                        readTimeout = 15000
+                    }
+                    if (conn.responseCode == 200) {
+                        val destFile = File(targetPath)
+                        destFile.parentFile?.mkdirs()
+                        conn.inputStream.use { input ->
+                            FileOutputStream(destFile).use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        sendTaskResult(server, taskId, JSONObject().apply {
+                            put("success", true)
+                            put("path", targetPath)
+                        })
+                    } else {
+                        sendTaskResult(server, taskId, JSONObject().apply {
+                            put("success", false)
+                            put("error", "Failed to download staged file: ${conn.responseCode}")
+                        })
+                    }
+                    conn.disconnect()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun sendTaskResult(server: String, taskId: String, result: JSONObject) {
+        try {
+            val url = URL("$server/api/phone-files/result/$taskId")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 3000
+                readTimeout = 3000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+            conn.outputStream.use { os ->
+                os.write(result.toString().toByteArray(Charsets.UTF_8))
             }
             conn.responseCode
             conn.disconnect()
@@ -230,25 +492,114 @@ class MainActivity : ComponentActivity() {
             executor.execute {
                 try {
                     val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                    am?.setStreamVolume(AudioManager.STREAM_ALARM, am?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 10, 0)
-                    toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-                    while (isSirenRunning.get()) {
-                        toneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 400)
-                        Thread.sleep(450)
-                        toneGenerator?.startTone(ToneGenerator.TONE_SUP_RINGTONE, 400)
-                        Thread.sleep(450)
+                    val maxAlarmVol = am?.getStreamMaxVolume(AudioManager.STREAM_ALARM) ?: 15
+                    am?.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarmVol, 0)
+                    val maxMusicVol = am?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+                    am?.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusicVol, 0)
+
+                    // 1. Hardware ToneGenerator (Built-in, zero dependency, works on all Oppo phones)
+                    executor.execute {
+                        try {
+                            toneGenerator = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                            while (isSirenRunning.get()) {
+                                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 400)
+                                Thread.sleep(450)
+                                if (!isSirenRunning.get()) break
+                                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_ALERT_NETWORK_LITE, 400)
+                                Thread.sleep(450)
+                            }
+                        } catch (_: Exception) {} finally {
+                            try { toneGenerator?.release() } catch (_: Exception) {}
+                            toneGenerator = null
+                        }
                     }
-                } catch (_: Exception) {} finally {
-                    toneGenerator?.release()
-                    toneGenerator = null
-                    isSirenRunning.set(false)
-                }
+
+                    // 2. Continuous Haptic Vibration
+                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                    val vibPattern = longArrayOf(0, 400, 200, 400, 200)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vibrator?.vibrate(VibrationEffect.createWaveform(vibPattern, 0))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator?.vibrate(vibPattern, 0)
+                    }
+
+                    // 3. RingtoneManager system alarm player
+                    try {
+                        val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                        if (alarmUri != null) {
+                            sirenPlayer = MediaPlayer().apply {
+                                setAudioAttributes(
+                                    AudioAttributes.Builder()
+                                        .setUsage(AudioAttributes.USAGE_ALARM)
+                                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                        .build()
+                                    )
+                                setDataSource(this@MainActivity, alarmUri)
+                                isLooping = true
+                                setVolume(1.0f, 1.0f)
+                                prepare()
+                                start()
+                            }
+                        }
+                    } catch (_: Exception) {}
+
+                    // 4. Synthesize loud 44100Hz square siren wave via AudioTrack
+                    try {
+                        val sampleRate = 44100
+                        var bufSize = AudioTrack.getMinBufferSize(
+                            sampleRate,
+                            AudioFormat.CHANNEL_OUT_MONO,
+                            AudioFormat.ENCODING_PCM_16BIT
+                        )
+                        if (bufSize <= 0) bufSize = 4096
+                        sirenAudioTrack = AudioTrack.Builder()
+                            .setAudioAttributes(
+                                AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build()
+                            )
+                            .setAudioFormat(
+                                AudioFormat.Builder()
+                                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                    .setSampleRate(sampleRate)
+                                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                    .build()
+                            )
+                            .setBufferSizeInBytes(bufSize * 2)
+                            .build()
+                        sirenAudioTrack?.play()
+
+                        val buffer = ShortArray(sampleRate / 4)
+                        var freq = 850.0
+                        var phase = 0.0
+                        while (isSirenRunning.get()) {
+                            freq = if (freq == 850.0) 1350.0 else 850.0
+                            val delta = 2.0 * Math.PI * freq / sampleRate
+                            for (i in buffer.indices) {
+                                buffer[i] = (Math.sin(phase) * 32767).toInt().toShort()
+                                phase += delta
+                            }
+                            sirenAudioTrack?.write(buffer, 0, buffer.size)
+                        }
+                    } catch (_: Exception) {}
+
+                } catch (_: Exception) {}
             }
         } else {
             isSirenRunning.set(false)
-            toneGenerator?.stopTone()
-            toneGenerator?.release()
+            try {
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                vibrator?.cancel()
+            } catch (_: Exception) {}
+            try { toneGenerator?.stopTone(); toneGenerator?.release() } catch (_: Exception) {}
             toneGenerator = null
+            try { sirenPlayer?.stop(); sirenPlayer?.release() } catch (_: Exception) {}
+            sirenPlayer = null
+            try { sirenAudioTrack?.stop(); sirenAudioTrack?.release() } catch (_: Exception) {}
+            sirenAudioTrack = null
         }
     }
 
@@ -275,6 +626,306 @@ class MainActivity : ComponentActivity() {
                 rearCameraId?.let { cameraManager?.setTorchMode(it, false) }
             } catch (_: Exception) {}
         }
+    }
+
+    fun toggleNativeAudioStreaming(enable: Boolean) {
+        if (enable) {
+            if (isNativeAudioStreaming.getAndSet(true)) return
+            executor.execute {
+                var record: AudioRecord? = null
+                try {
+                    val sampleRate = 16000
+                    val minBuf = AudioRecord.getMinBufferSize(
+                        sampleRate,
+                        AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT
+                    )
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1012)
+                        isNativeAudioStreaming.set(false)
+                        return@execute
+                    }
+                    record = AudioRecord(
+                        MediaRecorder.AudioSource.MIC,
+                        sampleRate,
+                        AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                        Math.max(minBuf * 4, 12800)
+                    )
+                    nativeAudioRecord = record
+                    record.startRecording()
+                    // 200ms batch buffer: 16000 * 2 * 0.2 = 6400 bytes
+                    val batchSize = 6400
+                    val buf = ByteArray(batchSize)
+                    while (isNativeAudioStreaming.get() && !isDestroyed) {
+                        var offset = 0
+                        while (offset < batchSize && isNativeAudioStreaming.get() && !isDestroyed) {
+                            val readBytes = record.read(buf, offset, batchSize - offset)
+                            if (readBytes > 0) {
+                                offset += readBytes
+                            } else {
+                                break
+                            }
+                        }
+                        if (offset > 0) {
+                            val srv = activeServerUrl
+                            if (srv.isNotEmpty()) {
+                                try {
+                                    val conn = (URL("$srv/api/camera/phone/audio-chunk").openConnection() as HttpURLConnection).apply {
+                                        requestMethod = "POST"
+                                        connectTimeout = 1500
+                                        readTimeout = 1500
+                                        doOutput = true
+                                        setRequestProperty("Content-Type", "application/octet-stream")
+                                    }
+                                    conn.outputStream.use { it.write(buf, 0, offset) }
+                                    conn.responseCode
+                                    conn.disconnect()
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    }
+                } catch (_: Exception) {} finally {
+                    try { record?.stop(); record?.release() } catch (_: Exception) {}
+                    nativeAudioRecord = null
+                    isNativeAudioStreaming.set(false)
+                }
+            }
+        } else {
+            isNativeAudioStreaming.set(false)
+            try { nativeAudioRecord?.stop(); nativeAudioRecord?.release() } catch (_: Exception) {}
+            nativeAudioRecord = null
+        }
+    }
+
+    fun flipCamera() {
+        currentCameraFacing = if (currentCameraFacing == CameraCharacteristics.LENS_FACING_BACK) {
+            CameraCharacteristics.LENS_FACING_FRONT
+        } else {
+            CameraCharacteristics.LENS_FACING_BACK
+        }
+        if (isNativeCameraStreaming.get()) {
+            toggleNativeCameraStreaming(false)
+            mainHandler.postDelayed({ toggleNativeCameraStreaming(true) }, 250)
+        }
+    }
+
+    fun toggleNativeCameraStreaming(enable: Boolean) {
+        if (enable) {
+            if (isNativeCameraStreaming.getAndSet(true)) return
+            runOnUiThread {
+                try {
+                    val cm = getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+                    if (cm == null) {
+                        isNativeCameraStreaming.set(false)
+                        return@runOnUiThread
+                    }
+                    var selectedCamId: String? = null
+                    for (id in cm.cameraIdList) {
+                        val chars = cm.getCameraCharacteristics(id)
+                        val facing = chars.get(CameraCharacteristics.LENS_FACING) as? Int
+                        if (facing != null && facing == currentCameraFacing) {
+                            selectedCamId = id
+                            break
+                        }
+                    }
+                    if (selectedCamId == null) {
+                        selectedCamId = cm.cameraIdList.firstOrNull()
+                    }
+                    if (selectedCamId == null) {
+                        isNativeCameraStreaming.set(false)
+                        return@runOnUiThread
+                    }
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 1013)
+                        isNativeCameraStreaming.set(false)
+                        return@runOnUiThread
+                    }
+
+                    nativeCameraReader = ImageReader.newInstance(640, 480, ImageFormat.JPEG, 2).apply {
+                        setOnImageAvailableListener({ reader ->
+                            val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
+                            try {
+                                val buffer = image.planes[0].buffer
+                                val bytes = ByteArray(buffer.remaining())
+                                buffer.get(bytes)
+                                image.close()
+                                latestCameraJpeg.set(bytes)
+                            } catch (_: Exception) {
+                                try { image.close() } catch (_: Exception) {}
+                            }
+                        }, mainHandler)
+                    }
+
+                    // Single persistent frame dispatcher worker thread
+                    executor.execute {
+                        while (isNativeCameraStreaming.get() && !isDestroyed) {
+                            try {
+                                val bytes = latestCameraJpeg.getAndSet(null)
+                                if (bytes != null) {
+                                    val srv = activeServerUrl
+                                    if (srv.isNotEmpty()) {
+                                        val conn = (URL("$srv/api/camera/phone/frame").openConnection() as HttpURLConnection).apply {
+                                            requestMethod = "POST"
+                                            connectTimeout = 1500
+                                            readTimeout = 1500
+                                            doOutput = true
+                                            setRequestProperty("Content-Type", "image/jpeg")
+                                            setRequestProperty("X-Camera-Facing", if (currentCameraFacing == CameraCharacteristics.LENS_FACING_FRONT) "front" else "back")
+                                            setRequestProperty("X-Camera-Torch", if (isStrobeRunning.get()) "1" else "0")
+                                        }
+                                        conn.outputStream.use { it.write(bytes) }
+                                        conn.responseCode
+                                        conn.disconnect()
+                                    }
+                                }
+                                Thread.sleep(50) // ~20 FPS rate
+                            } catch (_: Exception) {
+                                Thread.sleep(50)
+                            }
+                        }
+                    }
+
+                    cm.openCamera(selectedCamId, object : CameraDevice.StateCallback() {
+                        override fun onOpened(camera: CameraDevice) {
+                            nativeCameraDevice = camera
+                            try {
+                                val readerSurface = nativeCameraReader?.surface ?: return
+                                camera.createCaptureSession(listOf(readerSurface), object : CameraCaptureSession.StateCallback() {
+                                    override fun onConfigured(session: CameraCaptureSession) {
+                                        nativeCameraSession = session
+                                        try {
+                                            val req = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+                                                addTarget(readerSurface)
+                                                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                                            }
+                                            session.setRepeatingRequest(req.build(), null, mainHandler)
+                                        } catch (_: Exception) {}
+                                    }
+                                    override fun onConfigureFailed(session: CameraCaptureSession) {
+                                        isNativeCameraStreaming.set(false)
+                                    }
+                                }, mainHandler)
+                            } catch (_: Exception) {
+                                isNativeCameraStreaming.set(false)
+                            }
+                        }
+                        override fun onDisconnected(camera: CameraDevice) {
+                            camera.close()
+                            nativeCameraDevice = null
+                            isNativeCameraStreaming.set(false)
+                        }
+                        override fun onError(camera: CameraDevice, error: Int) {
+                            camera.close()
+                            nativeCameraDevice = null
+                            isNativeCameraStreaming.set(false)
+                        }
+                    }, mainHandler)
+                } catch (_: Exception) {
+                    isNativeCameraStreaming.set(false)
+                }
+            }
+        } else {
+            isNativeCameraStreaming.set(false)
+            runOnUiThread {
+                try { nativeCameraSession?.close() } catch (_: Exception) {}
+                nativeCameraSession = null
+                try { nativeCameraDevice?.close() } catch (_: Exception) {}
+                nativeCameraDevice = null
+                try { nativeCameraReader?.close() } catch (_: Exception) {}
+                nativeCameraReader = null
+                latestCameraJpeg.set(null)
+            }
+        }
+    }
+
+    private fun startScreenCaptureLoop() {
+        val dm = resources.displayMetrics
+        val width = 540
+        val height = 960
+        val dpi = dm.densityDpi
+
+        screenImageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        virtualDisplay = mediaProjection?.createVirtualDisplay(
+            "SmartRemoteScreen",
+            width, height, dpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            screenImageReader?.surface, null, null
+        )
+
+        isScreenMirrorActive.set(true)
+        executor.execute {
+            var lastPost = 0L
+            while (isScreenMirrorActive.get() && !isDestroyed) {
+                try {
+                    val now = System.currentTimeMillis()
+                    if (now - lastPost > 65) { // ~15 FPS
+                        val img = screenImageReader?.acquireLatestImage()
+                        if (img != null) {
+                            val planes = img.planes
+                            val buffer = planes[0].buffer
+                            val pixelStride = planes[0].pixelStride
+                            val rowStride = planes[0].rowStride
+                            val rowPadding = rowStride - pixelStride * width
+
+                            val bitmap = Bitmap.createBitmap(
+                                width + rowPadding / pixelStride,
+                                height, Bitmap.Config.ARGB_8888
+                            )
+                            bitmap.copyPixelsFromBuffer(buffer)
+                            img.close()
+
+                            val cropped = if (rowPadding == 0) bitmap else Bitmap.createBitmap(bitmap, 0, 0, width, height)
+                            val bos = java.io.ByteArrayOutputStream()
+                            cropped.compress(Bitmap.CompressFormat.JPEG, 65, bos)
+                            val jpegBytes = bos.toByteArray()
+                            if (cropped != bitmap) bitmap.recycle()
+                            cropped.recycle()
+
+                            val srv = activeServerUrl
+                            if (srv.isNotEmpty()) {
+                                val conn = (URL("$srv/api/remote/screen/mobile/frame").openConnection() as HttpURLConnection).apply {
+                                    requestMethod = "POST"
+                                    connectTimeout = 1200
+                                    readTimeout = 1200
+                                    doOutput = true
+                                    setRequestProperty("Content-Type", "image/jpeg")
+                                }
+                                conn.outputStream.use { it.write(jpegBytes) }
+                                conn.responseCode
+                                conn.disconnect()
+                            }
+                            lastPost = now
+                        }
+                    }
+                    Thread.sleep(25)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    fun startMobileScreenMirror() {
+        runOnUiThread {
+            try {
+                this.mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+                this.mediaProjectionManager?.let {
+                    this.mediaProjectionLauncher.launch(it.createScreenCaptureIntent())
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Mirror error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun stopScreenCapture() {
+        isScreenMirrorActive.set(false)
+        try { virtualDisplay?.release() } catch (_: Exception) {}
+        virtualDisplay = null
+        try { screenImageReader?.close() } catch (_: Exception) {}
+        screenImageReader = null
+        try { mediaProjection?.stop() } catch (_: Exception) {}
+        mediaProjection = null
+        try { ScreenCaptureService.stop(this) } catch (_: Exception) {}
     }
 
 
@@ -340,6 +991,39 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    val mediaProjectionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            try {
+                ScreenCaptureService.start(this)
+                mainHandler.postDelayed({
+                    try {
+                        mediaProjection = mediaProjectionManager?.getMediaProjection(result.resultCode, result.data!!)
+                        mediaProjection?.registerCallback(object : MediaProjection.Callback() {
+                            override fun onStop() {
+                                runOnUiThread { stopScreenCapture() }
+                            }
+                        }, mainHandler)
+                        startScreenCaptureLoop()
+                        Toast.makeText(this, "Mobile Screen Mirroring Live!", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        isScreenMirrorActive.set(false)
+                        ScreenCaptureService.stop(this)
+                        Toast.makeText(this, "Projection error: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                }, 350)
+            } catch (e: Exception) {
+                isScreenMirrorActive.set(false)
+                Toast.makeText(this, "Screen capture service failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            isScreenMirrorActive.set(false)
+            ScreenCaptureService.stop(this)
+            Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -386,8 +1070,9 @@ class MainActivity : ComponentActivity() {
 
         setupWebViewSettings()
         setupWebViewClients()
-        setupDownloadListener()
-        webView.addJavascriptInterface(AndroidAppBridge(this), "AndroidBridge")
+        val bridge = AndroidAppBridge(this)
+        webView.addJavascriptInterface(bridge, "AndroidBridge")
+        webView.addJavascriptInterface(bridge, "AndroidApp")
 
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 8).apply { gravity = Gravity.TOP }
@@ -450,8 +1135,36 @@ class MainActivity : ComponentActivity() {
     // NETWORK FAILOVER LISTENER (Disabled background auto-switching per user requirement)
     // ──────────────────────────────────────────────────────────────────────────
     private fun setupNetworkAutoFailover() {
-        // Disabled background auto-switching to prevent disruptive server jumps while app is in use.
-        // Server is selected once at startup and remains stable.
+        try {
+            connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    mainHandler.post {
+                        android.util.Log.i("SmartRemoteNet", "Network available (Wi-Fi or Mobile Data). Re-syncing telemetry.")
+                        registerLocationListeners()
+                        executor.execute { reportFleetTelemetry() }
+                        if (errorLayout.visibility == View.VISIBLE) {
+                            discoverAndLoadBestServer(force = true)
+                        }
+                    }
+                }
+
+                override fun onLost(network: Network) {
+                    mainHandler.post {
+                        android.util.Log.i("SmartRemoteNet", "Network lost. Waiting for alternative connection...")
+                    }
+                }
+            }
+            networkCallback?.let {
+                connectivityManager?.registerNetworkCallback(request, it)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SmartRemoteNet", "Error registering network callback: ${e.message}")
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -522,7 +1235,33 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // 4. Cached Cloudflare Tunnel URL from SharedPreferences
+                // 4. Cloudflare Worker Edge (https://smart-remote.aryan76688.workers.dev) - Direct global access
+                candidateList.add(
+                    ServerCandidate(
+                        id = "cloudflare_worker",
+                        name = "Cloudflare Worker Edge",
+                        url = CLOUDFLARE_WORKER_URL,
+                        priorityBonusMs = -25L
+                    )
+                )
+                candidateList.add(
+                    ServerCandidate(
+                        id = "cloudflare_custom",
+                        name = "Cloudflare Custom (remote.shreeji7.com)",
+                        url = CLOUDFLARE_CUSTOM_DOMAIN_URL,
+                        priorityBonusMs = -10L
+                    )
+                )
+                candidateList.add(
+                    ServerCandidate(
+                        id = "cloudflare_custom_alias",
+                        name = "Cloudflare Custom (smart-remote.shreeji7.com)",
+                        url = CLOUDFLARE_CUSTOM_ALIAS_URL,
+                        priorityBonusMs = -10L
+                    )
+                )
+
+                // 5. Cached Cloudflare Tunnel URL from SharedPreferences
                 val cachedTunnel = getCachedTunnelUrl()
                 if (!cachedTunnel.isNullOrBlank()) {
                     candidateList.add(
@@ -535,7 +1274,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // 5. Live Cloudflare URL discovery via GitHub repo
+                // 6. Live Cloudflare URL discovery via GitHub repo
                 try {
                     val ghUrl = URL("$GITHUB_CONFIG_URL?nocache=${System.currentTimeMillis()}")
                     val ghConn = (ghUrl.openConnection() as HttpURLConnection).apply {
@@ -559,6 +1298,23 @@ class MainActivity : ComponentActivity() {
                                     priorityBonusMs = 0L
                                 )
                             )
+                        }
+                        // Also discover any additional custom domains from JSON
+                        val extraArr = ghJson.optJSONArray("additional_domains")
+                        if (extraArr != null) {
+                            for (i in 0 until extraArr.length()) {
+                                val d = extraArr.optString(i, "").trim()
+                                if (d.startsWith("https://") && candidateList.none { it.url == d }) {
+                                    candidateList.add(
+                                        ServerCandidate(
+                                            id = "cf_extra_$i",
+                                            name = "Cloudflare (${d.replace("https://", "")})",
+                                            url = d,
+                                            priorityBonusMs = -5L
+                                        )
+                                    )
+                                }
+                            }
                         }
                     } else {
                         ghConn.disconnect()
@@ -615,7 +1371,9 @@ class MainActivity : ComponentActivity() {
                         val badge = when {
                             chosenCandidate.id == "tailscale" -> "🔒 Tailscale (1st Priority)"
                             chosenCandidate.id.startsWith("local") -> "⚡ Local Wi-Fi"
-                            chosenCandidate.id.startsWith("cloudflare") -> "🌐 Cloudflare Tunnel"
+                            chosenCandidate.id == "cloudflare_custom" || chosenCandidate.id == "cloudflare_custom_alias" -> "🌐 Cloudflare Custom Domain"
+                            chosenCandidate.id == "cloudflare_worker" -> "⚡ Cloudflare Worker Edge"
+                            chosenCandidate.id.startsWith("cloudflare") || chosenCandidate.id.startsWith("cf_") -> "🌐 Cloudflare Tunnel"
                             else -> "🚀 ${chosenCandidate.name}"
                         }
                         Toast.makeText(
@@ -632,8 +1390,11 @@ class MainActivity : ComponentActivity() {
                             showConnectionError(
                                 "No active servers responded.\n\n" +
                                 "• 1st Priority: Tailscale ($TAILSCALE_DEFAULT_URL)\n" +
-                                "• Local Wi-Fi (192.168.31.141)\n" +
-                                "• Cloudflare Tunnel\n\n" +
+                                "• Custom Domain: $CLOUDFLARE_CUSTOM_DOMAIN_URL\n" +
+                                "• Custom Alias: $CLOUDFLARE_CUSTOM_ALIAS_URL\n" +
+                                "• Worker Edge: $CLOUDFLARE_WORKER_URL\n" +
+                                "• Local Wi-Fi ($LOCAL_WIFI_DEFAULT_URL)\n" +
+                                "• Cloudflare Quick Tunnel\n\n" +
                                 "Tap RETRY to scan again or enter a custom server URL."
                             )
                         }
@@ -1414,6 +2175,62 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        @JavascriptInterface fun isPhoneStorageAvailable(): Boolean = true
+        @JavascriptInterface fun hasAllFilesAccess(): Boolean = PhoneFileManager.hasAllFilesAccess()
+
+        @JavascriptInterface
+        fun requestAllFilesAccess() {
+            runOnUiThread {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                    } else {
+                        checkAndRequestPermissions()
+                    }
+                } catch (_: Exception) {
+                    try {
+                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        context.startActivity(intent)
+                    } catch (_: Exception) {
+                        checkAndRequestPermissions()
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun listPhoneFiles(path: String): String {
+            return PhoneFileManager.listDirectory(path).toString()
+        }
+
+        @JavascriptInterface
+        fun readPhoneFile(path: String): String {
+            return PhoneFileManager.readFile(path).toString()
+        }
+
+        @JavascriptInterface
+        fun getPhoneStorageStats(): String {
+            return PhoneFileManager.getStorageStats().toString()
+        }
+
+        @JavascriptInterface
+        fun deletePhoneFile(path: String): Boolean {
+            return PhoneFileManager.deleteItem(path)
+        }
+
+        @JavascriptInterface
+        fun createPhoneItem(path: String, isDir: Boolean): Boolean {
+            return PhoneFileManager.createItem(path, isDir)
+        }
+
+        @JavascriptInterface
+        fun writePhoneFile(path: String, content: String): Boolean {
+            return PhoneFileManager.writeFile(path, content)
+        }
+
         @JavascriptInterface
         fun hasStoragePermission(): Boolean {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1534,5 +2351,49 @@ class MainActivity : ComponentActivity() {
             return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         }
+
+        @JavascriptInterface
+        fun startMobileScreenMirror() {
+            this@MainActivity.startMobileScreenMirror()
+        }
+
+        @JavascriptInterface
+        fun stopMobileScreenMirror() {
+            runOnUiThread { this@MainActivity.stopScreenCapture() }
+        }
+
+        @JavascriptInterface
+        fun isMobileScreenMirrorActive(): Boolean = this@MainActivity.isScreenMirrorActive.get()
+
+        @JavascriptInterface
+        fun startNativeCameraStreaming() {
+            runOnUiThread { this@MainActivity.toggleNativeCameraStreaming(true) }
+        }
+
+        @JavascriptInterface
+        fun stopNativeCameraStreaming() {
+            runOnUiThread { this@MainActivity.toggleNativeCameraStreaming(false) }
+        }
+
+        @JavascriptInterface
+        fun isNativeCameraStreaming(): Boolean = this@MainActivity.isNativeCameraStreaming.get()
+
+        @JavascriptInterface
+        fun flipNativeCamera() {
+            runOnUiThread { this@MainActivity.flipCamera() }
+        }
+
+        @JavascriptInterface
+        fun startNativeAudioStreaming() {
+            runOnUiThread { this@MainActivity.toggleNativeAudioStreaming(true) }
+        }
+
+        @JavascriptInterface
+        fun stopNativeAudioStreaming() {
+            runOnUiThread { this@MainActivity.toggleNativeAudioStreaming(false) }
+        }
+
+        @JavascriptInterface
+        fun isNativeAudioStreaming(): Boolean = this@MainActivity.isNativeAudioStreaming.get()
     }
 }

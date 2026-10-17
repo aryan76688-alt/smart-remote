@@ -35,7 +35,7 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
   const networkType: 'tailscale' | 'cloudflare' | 'local' = 
     hostname.startsWith('100.') || hostname === '100.69.194.11'
       ? 'tailscale'
-      : hostname.includes('trycloudflare.com') || hostname.includes('cloudflare')
+      : hostname.includes('trycloudflare.com') || hostname.includes('cloudflare') || hostname.includes('shreeji7.com') || hostname.includes('workers.dev')
       ? 'cloudflare'
       : 'local';
 

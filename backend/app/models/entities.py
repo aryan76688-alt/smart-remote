@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float
 from app.database import Base
 
 class Device(Base):
@@ -156,4 +156,40 @@ class DevicePresenceEntity(Base):
     last_heartbeat = Column(DateTime, default=datetime.datetime.utcnow, index=True)
     ip_address = Column(String(64), nullable=True)
     tailscale_ip = Column(String(64), nullable=True)
+
+class FleetDeviceEntity(Base):
+    __tablename__ = "fleet_devices"
+
+    id = Column(String(64), primary_key=True, index=True)  # "laptop-host", "oppo"
+    name = Column(String(128), nullable=False)
+    model = Column(String(128), nullable=True)
+    role = Column(String(32), default="mobile")            # "laptop" or "mobile"
+    lat = Column(Float, default=23.1682)
+    lng = Column(Float, default=72.8223)
+    accuracy = Column(Float, default=10.0)
+    battery = Column(Integer, default=100)
+    is_charging = Column(Boolean, default=False)
+    speed = Column(Float, default=0.0)
+    heading = Column(Float, default=0.0)
+    altitude = Column(Float, default=0.0)
+    status = Column(String(32), default="online")
+    last_seen = Column(Float, default=0.0)
+    siren_active = Column(Boolean, default=False)
+    strobe_active = Column(Boolean, default=False)
+    leash_active = Column(Boolean, default=False)
+    leash_radius = Column(Float, default=100.0)
+    address = Column(Text, nullable=True)
+    camera_active = Column(Boolean, default=False)
+    mic_active = Column(Boolean, default=False)
+
+class LocationBreadcrumbEntity(Base):
+    __tablename__ = "location_breadcrumbs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(String(64), index=True, nullable=False)
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    speed = Column(Float, default=0.0)
+    timestamp = Column(Float, nullable=False)
+
 

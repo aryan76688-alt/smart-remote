@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import Optional, List
 from pathlib import Path
@@ -76,11 +76,62 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
+def _create_zip_for_paths(paths: List[str]) -> io.BytesIO:
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for p in paths:
+            if not p:
+                continue
+            try:
+                target = file_manager._resolve_safe_path(p)
+            except Exception:
+                continue
+            if not target.exists():
+                continue
+            if target.is_file():
+                try:
+                    zip_file.write(target, arcname=target.name)
+                except Exception:
+                    pass
+            elif target.is_dir():
+                folder_name = target.name if target.name else "folder"
+                base_dir = target.parent if (target.parent != target and target.name) else target
+                try:
+                    zip_file.writestr(zipfile.ZipInfo(f"{folder_name}/"), "")
+                except Exception:
+                    pass
+                for root, dirs, filenames in os.walk(target):
+                    for d in dirs:
+                        abs_dir = Path(root) / d
+                        try:
+                            rel_dir = abs_dir.relative_to(base_dir).as_posix()
+                            zip_file.writestr(zipfile.ZipInfo(f"{rel_dir}/"), "")
+                        except Exception:
+                            pass
+                    for filename in filenames:
+                        abs_file = Path(root) / filename
+                        try:
+                            rel_path = abs_file.relative_to(base_dir).as_posix()
+                            zip_file.write(abs_file, arcname=rel_path)
+                        except Exception:
+                            pass
+    zip_buffer.seek(0)
+    return zip_buffer
+
 @router.get("/download")
 def download_file(path: str, request: Request, inline: bool = False):
     target = file_manager._resolve_safe_path(path)
-    if not target.exists() or target.is_dir():
+    if not target.exists():
         raise HTTPException(status_code=404, detail="File not found")
+
+    if target.is_dir():
+        folder_name = target.name if target.name else "folder"
+        zip_buffer = _create_zip_for_paths([path])
+        headers = {
+            "Content-Disposition": f'attachment; filename="{folder_name}.zip"',
+            "Cache-Control": "no-cache"
+        }
+        return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
 
     mime_type, _ = mimetypes.guess_type(target.name)
     mime_type = mime_type or "application/octet-stream"
@@ -128,24 +179,43 @@ def bulk_download(req: BulkDownloadRequest):
     if not req.paths:
         raise HTTPException(status_code=400, detail="No files selected for download")
 
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for p in req.paths:
-            target = file_manager._resolve_safe_path(p)
-            if not target.exists():
-                continue
-            if target.is_file():
-                zip_file.write(target, arcname=target.name)
-            elif target.is_dir():
-                for root, _, filenames in os.walk(target):
-                    for filename in filenames:
-                        abs_file = Path(root) / filename
-                        rel_path = abs_file.relative_to(target.parent)
-                        zip_file.write(abs_file, arcname=str(rel_path))
-
-    zip_buffer.seek(0)
+    zip_buffer = _create_zip_for_paths(req.paths)
+    filename = f"smart_remote_export_{int(time.time())}.zip"
     headers = {
-        "Content-Disposition": f"attachment; filename=smart_remote_export_{int(time.time())}.zip"
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-cache"
+    }
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
+
+@router.get("/bulk-download-zip")
+def bulk_download_zip_get(
+    paths: Optional[str] = None,
+    path: Optional[List[str]] = Query(None)
+):
+    target_paths: List[str] = []
+    if path:
+        target_paths.extend(path)
+    if paths:
+        clean = paths.strip()
+        if clean.startswith("[") and clean.endswith("]"):
+            try:
+                import json
+                parsed = json.loads(clean)
+                if isinstance(parsed, list):
+                    target_paths.extend([str(p) for p in parsed if p])
+            except Exception:
+                target_paths.extend([p.strip() for p in clean.split(",") if p.strip()])
+        else:
+            target_paths.extend([p.strip() for p in clean.split(",") if p.strip()])
+
+    if not target_paths:
+        raise HTTPException(status_code=400, detail="No files or folders selected for download")
+
+    zip_buffer = _create_zip_for_paths(target_paths)
+    filename = f"smart_remote_export_{int(time.time())}.zip"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-cache"
     }
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
 

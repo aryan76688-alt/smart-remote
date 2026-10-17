@@ -6,7 +6,7 @@ import {
   Delete, Eye, EyeOff, MousePointer, ChevronDown, ChevronUp, Layers,
   Lock, Unlock, Laptop, Smartphone, Video, VideoOff, Cloud,
   RotateCw, Shield, Disc, Check, Clock, Moon, Sun, AlertTriangle,
-  Volume2, VolumeX, Mic, Radio, Waves
+  Volume2, VolumeX, Mic, Radio, Waves, Download
 } from 'lucide-react';
 import { useWebSocket } from '../../context/WebSocketContext';
 import { useApp } from '../../context/AppContext';
@@ -43,6 +43,21 @@ export const ScreenMirrorView: React.FC = () => {
   // Mouse cursor overlay state
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number }>({ x: 683, y: 384 });
   const [showCursor, setShowCursor] = useState<boolean>(true);
+
+  // Display Source Toggle: 🖥️ Kali Desktop vs 📱 Oppo Mobile Screen
+  const [displaySource, setDisplaySource] = useState<'kali' | 'oppo'>('kali');
+  const [oppoScreenActive, setOppoScreenActive] = useState<boolean>(false);
+  const [oppoStreamKey, setOppoStreamKey] = useState<number>(Date.now());
+  const [isMirroringFromApk, setIsMirroringFromApk] = useState<boolean>(false);
+  const [oppoFps, setOppoFps] = useState<number>(0);
+  const [oppoOrientation, setOppoOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [oppoFullscreen, setOppoFullscreen] = useState<boolean>(false);
+  const oppoViewportRef = useRef<HTMLDivElement | null>(null);
+  const oppoImgRef = useRef<HTMLImageElement | null>(null);
+
+  // VirtualBox PC Mouse & Keyboard Control Mode
+  const [vboxMode, setVboxMode] = useState<boolean>(true);
+  const [isPointerLocked, setIsPointerLocked] = useState<boolean>(false);
 
   // Dedicated F1-F12 Function Bar
   const [showFunctionBar, setShowFunctionBar] = useState<boolean>(false);
@@ -415,6 +430,40 @@ export const ScreenMirrorView: React.FC = () => {
     };
   }, [isFullscreen, isApk]);
 
+  // Pointer lock change listener (VirtualBox PC mode)
+  useEffect(() => {
+    const handlePointerLockChange = () => {
+      setIsPointerLocked(document.pointerLockElement === canvasRef.current);
+    };
+    document.addEventListener('pointerlockchange', handlePointerLockChange);
+    return () => {
+      document.removeEventListener('pointerlockchange', handlePointerLockChange);
+    };
+  }, []);
+
+  // Poll Mobile Screen Mirror status
+  useEffect(() => {
+    let mounted = true;
+    const checkOppoScreen = async () => {
+      try {
+        const data = await api.getMobileScreenStatus();
+        if (mounted) {
+          setOppoScreenActive(Boolean(data.active));
+          setOppoFps(data.fps || 0);
+          if (data.active) {
+            setIsMirroringFromApk(true);
+          }
+        }
+      } catch {}
+    };
+    checkOppoScreen();
+    const interval = setInterval(checkOppoScreen, 2000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Live Digital Clock for CCTV OSD
   useEffect(() => {
     const updateTime = () => {
@@ -631,6 +680,119 @@ export const ScreenMirrorView: React.FC = () => {
     setTimeout(() => {
       setTouchRipples(prev => prev.filter(r => r.id !== rippleId));
     }, 450);
+  };
+
+  // VirtualBox PC Mouse & Keyboard Handlers
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!vboxMode) return;
+    if (isPointerLocked) {
+      sendInput({ type: 'move_rel', x: e.movementX, y: e.movementY });
+    } else {
+      const { x, y } = getScaledCoordinates(e.clientX, e.clientY);
+      setCursorPos({ x, y });
+      sendInput({ type: 'move_abs', x, y });
+    }
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!vboxMode) return;
+    canvasRef.current?.focus();
+    const btn = e.button === 0 ? 1 : (e.button === 1 ? 2 : (e.button === 2 ? 3 : 1));
+    sendInput({ type: 'mousedown', button: btn });
+  };
+
+  const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!vboxMode) return;
+    const btn = e.button === 0 ? 1 : (e.button === 1 ? 2 : (e.button === 2 ? 3 : 1));
+    sendInput({ type: 'mouseup', button: btn });
+  };
+
+  const handleCanvasWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    if (!vboxMode) return;
+    e.preventDefault();
+    const scrollDelta = e.deltaY > 0 ? -2 : 2;
+    sendInput({ type: 'scroll', delta_y: scrollDelta });
+  };
+
+  const handleCanvasKeyDown = (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+    if (!vboxMode) return;
+    const systemKeys = ['Tab', 'Backspace', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
+    if (systemKeys.includes(e.key) || e.ctrlKey || e.altKey) {
+      e.preventDefault();
+    }
+    sendInput({ type: 'keydown', key: e.key });
+  };
+
+  const handleCanvasKeyUp = (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+    if (!vboxMode) return;
+    sendInput({ type: 'keyup', key: e.key });
+  };
+
+  const requestPointerLock = () => {
+    try {
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      } else {
+        canvasRef.current?.requestPointerLock();
+        canvasRef.current?.focus();
+        addNotification('VirtualBox Mouse Lock', 'Mouse locked to Kali Linux. Press ESC to release.', 'info');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleApkScreenMirror = async () => {
+    const bridge = (window as any).AndroidBridge || (window as any).AndroidApp;
+    if (isMirroringFromApk || oppoScreenActive) {
+      if (bridge && typeof bridge.stopMobileScreenMirror === 'function') {
+        bridge.stopMobileScreenMirror();
+      }
+      await api.controlMobileScreen('stop').catch(() => {});
+      setIsMirroringFromApk(false);
+      setOppoScreenActive(false);
+      addNotification('Screen Mirror', 'Stopping phone screen mirror...', 'info');
+    } else {
+      if (bridge && typeof bridge.startMobileScreenMirror === 'function') {
+        bridge.startMobileScreenMirror();
+      }
+      await api.controlMobileScreen('start').catch(() => {});
+      setIsMirroringFromApk(true);
+      addNotification('Screen Mirror', 'Starting phone screen projection...', 'info');
+      setTimeout(() => setOppoStreamKey(Date.now()), 1000);
+    }
+  };
+
+  const captureOppoScreenshot = () => {
+    if (!oppoImgRef.current) return;
+    try {
+      const img = oppoImgRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || 540;
+      canvas.height = img.naturalHeight || 960;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `oppo_screenshot_${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleOppoFullscreen = () => {
+    if (!oppoViewportRef.current) return;
+    if (!document.fullscreenElement) {
+      oppoViewportRef.current.requestFullscreen().then(() => setOppoFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setOppoFullscreen(false)).catch(() => {});
+    }
   };
 
   // Passwordless Unlock Handler
@@ -982,8 +1144,66 @@ export const ScreenMirrorView: React.FC = () => {
           </button>
         </div>
 
+        {/* Display Source Selector: 🖥️ Kali Desktop vs 📱 Oppo Mobile Screen */}
+        <div className="pointer-events-auto flex items-center bg-slate-950/90 backdrop-blur-md p-0.5 rounded-full border border-cyan-500/30 shadow-lg shrink-0">
+          <button
+            onClick={() => setDisplaySource('kali')}
+            className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 transition-all ${
+              displaySource === 'kali'
+                ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Laptop className="w-3 h-3" />
+            <span>KALI</span>
+          </button>
+          <button
+            onClick={() => setDisplaySource('oppo')}
+            className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 transition-all ${
+              displaySource === 'oppo'
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Smartphone className="w-3 h-3" />
+            <span>OPPO SCREEN</span>
+            {oppoScreenActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />}
+          </button>
+        </div>
+
         {/* Action Controls Group: Compact Viewer Tools */}
         <div className="pointer-events-auto flex items-center gap-1 bg-slate-950/90 backdrop-blur-md p-1 rounded-full border border-slate-800 shadow-lg shrink-0">
+          {/* VirtualBox Control Mode Toggle */}
+          <button
+            onClick={() => {
+              setVboxMode(!vboxMode);
+              addNotification('VirtualBox Mode', !vboxMode ? 'PC Mouse & Keyboard control active' : 'VirtualBox control disabled', 'info');
+            }}
+            className={`p-1 px-2 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 shrink-0 transition-colors ${
+              vboxMode
+                ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
+                : 'bg-slate-900 text-slate-400'
+            }`}
+            title="Toggle VirtualBox PC Mouse & Keyboard Control"
+          >
+            <Keyboard className="w-3 h-3" />
+            <span className="hidden sm:inline">VBOX</span>
+          </button>
+
+          {/* Pointer Lock (Capture Mouse) */}
+          <button
+            onClick={requestPointerLock}
+            className={`p-1 px-2 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 shrink-0 transition-colors ${
+              isPointerLocked
+                ? 'bg-amber-500 text-slate-950 font-bold'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+            title={isPointerLocked ? 'Pointer Locked (ESC to release)' : 'Capture / Lock Mouse Pointer (VirtualBox style)'}
+          >
+            <MousePointer className="w-3 h-3" />
+            <span className="hidden sm:inline">{isPointerLocked ? 'LOCKED' : 'LOCK'}</span>
+          </button>
+
           {/* Mouse Cursor Overlay Toggle */}
           <button
             onClick={() => setShowCursor(!showCursor)}
@@ -1642,75 +1862,236 @@ export const ScreenMirrorView: React.FC = () => {
 
       {/* 
         =======================================================================
-        SCREEN MIRROR CANVAS AREA WITH TOUCH, POINTER & MOUSE CURSOR OVERLAY
+        SCREEN MIRROR VIEWPORT: KALI LINUX CANVAS VS OPPO MOBILE SCREEN
         =======================================================================
       */}
-      <div
-        className="w-full h-full flex items-center justify-center overflow-auto touch-control-area relative"
-        onContextMenu={e => e.preventDefault()}
-      >
-        <div className="relative inline-block">
-          <canvas
-            ref={canvasRef}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onPointerDown={handlePointerDown}
-            style={{
-              transform: `scale(${scale})`,
-              transformOrigin: 'center center',
-              maxWidth: fitMode === 'contain' ? '100vw' : 'none',
-              maxHeight: fitMode === 'contain' ? '100dvh' : 'none',
-              objectFit: 'contain',
-              cursor: touchModeEnabled ? 'crosshair' : 'default',
-              touchAction: 'none'
-            }}
-            className="shadow-2xl border border-slate-900 transition-transform duration-75 block"
-          />
+      {displaySource === 'oppo' ? (
+        <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-5 relative overflow-auto touch-control-area">
+          <div
+            ref={oppoViewportRef}
+            className={`flex flex-col items-center w-full gap-3 transition-all duration-300 ${
+              oppoFullscreen ? 'fixed inset-0 z-50 bg-[#030712] p-4 justify-center' : 'max-w-2xl'
+            }`}
+          >
+            {/* Cyber Cockpit Telemetry Header */}
+            <div className="flex items-center justify-between w-full bg-[#090d16]/95 border border-slate-800 rounded-2xl px-4 py-2.5 backdrop-blur-xl shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">
+                  <Smartphone className="w-4 h-4 text-rose-400" />
+                </div>
+                <div>
+                  <div className="text-xs font-mono font-bold text-white flex items-center gap-2">
+                    <span>OPPO SCREEN MIRROR</span>
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 ${
+                      oppoScreenActive
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        oppoScreenActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                      }`} />
+                      {oppoScreenActive ? 'PROJECTION ACTIVE' : 'AWAITING BROADCAST'}
+                    </span>
+                    {oppoScreenActive && (
+                      <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                        {oppoFps} FPS • 540x960
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400">
+                    Oppo CPH2381 • Android 14/15 MediaProjection MJPEG
+                  </div>
+                </div>
+              </div>
 
-          {/* Authentic Desktop Mouse Cursor Pointer */}
-          {showCursor && (
-            <div
-              className="absolute pointer-events-none z-20 transition-all duration-75 ease-out"
-              style={{
-                left: `${(cursorPos.x / (resolution.width || 1)) * 100}%`,
-                top: `${(cursorPos.y / (resolution.height || 1)) * 100}%`,
-                transform: 'translate(-2px, -2px)'
-              }}
-            >
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
-              >
-                <path
-                  d="M3 2L19 11L12 13L9 21L3 2Z"
-                  fill="#ffffff"
-                  stroke="#090d16"
-                  strokeWidth="1.75"
-                  strokeLinejoin="round"
-                />
-                <circle cx="5" cy="4" r="1.25" fill="#38bdf8" />
-              </svg>
+              {/* Viewport Control Actions */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setOppoOrientation(prev => prev === 'portrait' ? 'landscape' : 'portrait')}
+                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
+                  title={`Switch to ${oppoOrientation === 'portrait' ? 'Landscape' : 'Portrait'}`}
+                >
+                  <RotateCw className="w-4 h-4 text-cyan-400" />
+                </button>
+                <button
+                  onClick={captureOppoScreenshot}
+                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
+                  title="Take Screenshot"
+                >
+                  <Download className="w-4 h-4 text-emerald-400" />
+                </button>
+                <button
+                  onClick={() => setOppoStreamKey(Date.now())}
+                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
+                  title="Reload Stream"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={toggleOppoFullscreen}
+                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
+                  title="Toggle Fullscreen"
+                >
+                  {oppoFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={toggleApkScreenMirror}
+                  className={`px-3 py-1.5 rounded-xl font-mono text-[11px] font-bold transition-all shadow-lg active:scale-95 ml-1 ${
+                    (isMirroringFromApk || oppoScreenActive)
+                      ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950/40'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40'
+                  }`}
+                >
+                  {(isMirroringFromApk || oppoScreenActive) ? 'STOP BROADCAST' : 'START ON PHONE'}
+                </button>
+              </div>
             </div>
-          )}
 
-          {/* Visual Touch Ripples on Tap */}
-          {touchRipples.map(r => (
-            <div
-              key={r.id}
-              style={{ left: r.x, top: r.y }}
-              className={`absolute w-12 h-12 rounded-full border-2 pointer-events-none animate-touch-ripple ${
-                r.isRightClick
-                  ? 'border-amber-400 bg-amber-500/30'
-                  : 'border-cyan-400 bg-cyan-500/30'
-              }`}
-            />
-          ))}
+            {/* Authentic Mobile Hardware Chassis Viewport */}
+            <div className={`relative rounded-[2.5rem] p-3 bg-gradient-to-b from-slate-800 via-[#0d121f] to-slate-900 border-2 border-slate-700/80 shadow-[0_0_50px_rgba(0,0,0,0.9)] flex items-center justify-center transition-all duration-300 ${
+              oppoOrientation === 'landscape'
+                ? 'w-full max-w-3xl aspect-[19.5/9] max-h-[75vh]'
+                : 'w-auto aspect-[9/19.5] max-h-[75vh]'
+            }`}>
+              {/* Inner Screen Bezel */}
+              <div className="relative w-full h-full rounded-[2rem] overflow-hidden bg-black flex items-center justify-center border border-slate-800">
+                {/* Dynamic Island / Punch Hole Camera Notch */}
+                {oppoOrientation === 'portrait' ? (
+                  <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-20 h-4 bg-black/90 rounded-full z-30 flex items-center justify-center gap-2 border border-slate-800/80 pointer-events-none">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#111] border border-slate-800 flex items-center justify-center">
+                      <div className="w-1 h-1 rounded-full bg-cyan-900/80" />
+                    </div>
+                    <div className="w-6 h-1 rounded-full bg-slate-900" />
+                  </div>
+                ) : (
+                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-20 bg-black/90 rounded-full z-30 flex flex-col items-center justify-center gap-2 border border-slate-800/80 pointer-events-none">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#111] border border-slate-800 flex items-center justify-center">
+                      <div className="w-1 h-1 rounded-full bg-cyan-900/80" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Live MJPEG Image Feed */}
+                <img
+                  ref={oppoImgRef}
+                  key={oppoStreamKey}
+                  src={`/api/remote/screen/mobile/stream?t=${oppoStreamKey}`}
+                  alt="Oppo Mobile Screen Stream"
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                  onLoad={(e) => {
+                    (e.target as HTMLElement).style.display = 'block';
+                  }}
+                />
+
+                {/* Standby / Awaiting Screen State */}
+                {!oppoScreenActive && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#070b13]/95 backdrop-blur-md z-20">
+                    <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-3">
+                      <Smartphone className="w-7 h-7 text-cyan-400 animate-pulse" />
+                    </div>
+                    <h3 className="text-sm font-mono font-bold text-white">OPPO SCREEN MIRROR STANDBY</h3>
+                    <p className="text-xs font-mono text-slate-400 mt-1 max-w-xs leading-relaxed">
+                      Real-time Android 14/15 screen capture via SmartRemote APK.
+                    </p>
+
+                    <div className="mt-4 flex flex-col gap-2 w-full max-w-xs">
+                      <button
+                        onClick={toggleApkScreenMirror}
+                        className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white rounded-xl font-mono text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/50 active:scale-95 transition-all"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        <span>REMOTE START PROJECTION</span>
+                      </button>
+
+                      <p className="text-[10px] font-mono text-slate-500 text-center mt-1">
+                        If viewing on phone, open the SmartRemote app and tap "Mirror Screen".
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className="w-full h-full flex items-center justify-center overflow-auto touch-control-area relative"
+          onContextMenu={e => e.preventDefault()}
+        >
+          <div className="relative inline-block">
+            <canvas
+              ref={canvasRef}
+              tabIndex={0}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onPointerDown={handlePointerDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseUp={handleCanvasMouseUp}
+              onWheel={handleCanvasWheel}
+              onKeyDown={handleCanvasKeyDown}
+              onKeyUp={handleCanvasKeyUp}
+              style={{
+                transform: `scale(${scale})`,
+                transformOrigin: 'center center',
+                maxWidth: fitMode === 'contain' ? '100vw' : 'none',
+                maxHeight: fitMode === 'contain' ? '100dvh' : 'none',
+                objectFit: 'contain',
+                cursor: vboxMode ? (isPointerLocked ? 'none' : 'default') : (touchModeEnabled ? 'crosshair' : 'default'),
+                touchAction: 'none',
+                outline: 'none'
+              }}
+              className="shadow-2xl border border-slate-900 transition-transform duration-75 block focus:ring-1 focus:ring-cyan-500/50"
+            />
+
+            {/* Authentic Desktop Mouse Cursor Pointer */}
+            {showCursor && !isPointerLocked && (
+              <div
+                className="absolute pointer-events-none z-20 transition-all duration-75 ease-out"
+                style={{
+                  left: `${(cursorPos.x / (resolution.width || 1)) * 100}%`,
+                  top: `${(cursorPos.y / (resolution.height || 1)) * 100}%`,
+                  transform: 'translate(-2px, -2px)'
+                }}
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+                >
+                  <path
+                    d="M3 2L19 11L12 13L9 21L3 2Z"
+                    fill="#ffffff"
+                    stroke="#090d16"
+                    strokeWidth="1.75"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="5" cy="4" r="1.25" fill="#38bdf8" />
+                </svg>
+              </div>
+            )}
+
+            {/* Visual Touch Ripples on Tap */}
+            {touchRipples.map(r => (
+              <div
+                key={r.id}
+                style={{ left: r.x, top: r.y }}
+                className={`absolute w-12 h-12 rounded-full border-2 pointer-events-none animate-touch-ripple ${
+                  r.isRightClick
+                    ? 'border-amber-400 bg-amber-500/30'
+                    : 'border-cyan-400 bg-cyan-500/30'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 
         =======================================================================

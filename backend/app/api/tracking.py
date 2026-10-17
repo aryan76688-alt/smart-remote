@@ -6,11 +6,11 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from app.services.geolocation_service import geolocation_service
+from app.services.intercom_service import intercom_service
+from app.database import SessionLocal
+from app.models.entities import FleetDeviceEntity, LocationBreadcrumbEntity
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
-
-FLEET_STORE_FILE = "/tmp/smart-remote-fleet.json"
-BREADCRUMBS_FILE = "/tmp/smart-remote-breadcrumbs.json"
 
 class DeviceUpdate(BaseModel):
     device_id: str
@@ -27,7 +27,7 @@ class DeviceUpdate(BaseModel):
     altitude: Optional[float] = None
 
 class DeviceAction(BaseModel):
-    action: str  # "siren", "strobe", "leash", "lock", "ping"
+    action: str  # "siren", "strobe", "leash", "lock", "camera", "mic", "ping"
     value: Optional[bool] = None
 
 class GeofenceConfig(BaseModel):
@@ -37,306 +37,427 @@ class GeofenceConfig(BaseModel):
     name: Optional[str] = "Safe Zone"
     enabled: bool = True
 
-# In-memory fleet registry
+# In-memory fast cache
 devices_registry: Dict[str, Dict[str, Any]] = {}
 breadcrumbs_history: List[Dict[str, Any]] = []
 geofence_state: Dict[str, Any] = {
     "enabled": True,
-    "name": "Base Headquarters",
-    "center_lat": 23.0276,
-    "center_lng": 72.5871,
+    "name": "Dahegam Operations HQ",
+    "center_lat": 23.168191,
+    "center_lng": 72.822328,
     "radius_meters": 500.0,
     "breached": False
 }
 
+def entity_to_dict(entity: FleetDeviceEntity) -> Dict[str, Any]:
+    return {
+        "id": entity.id,
+        "name": entity.name,
+        "model": entity.model or "",
+        "role": entity.role,
+        "lat": entity.lat,
+        "lng": entity.lng,
+        "accuracy": entity.accuracy or 10.0,
+        "battery": entity.battery or 100,
+        "is_charging": bool(entity.is_charging),
+        "speed": entity.speed or 0.0,
+        "heading": entity.heading or 0.0,
+        "altitude": entity.altitude or 0.0,
+        "status": entity.status or "online",
+        "last_seen": entity.last_seen or time.time(),
+        "siren_active": bool(entity.siren_active),
+        "strobe_active": bool(entity.strobe_active),
+        "leash_active": bool(entity.leash_active),
+        "leash_radius": entity.leash_radius or 100.0,
+        "address": entity.address or "Dahegam, Gandhinagar, Gujarat, India",
+        "camera_active": bool(entity.camera_active),
+        "mic_active": bool(entity.mic_active)
+    }
+
 def init_default_fleet():
-    laptop_loc = geolocation_service.get_laptop_location()
-    base_lat = laptop_loc.get("lat", 23.0276)
-    base_lng = laptop_loc.get("lng", 72.5871)
+    """Initializes database and purges all mock devices so only Kali and Oppo exist."""
+    db = SessionLocal()
+    try:
+        # 1. PURGE any legacy / mock devices from database
+        db.query(FleetDeviceEntity).filter(~FleetDeviceEntity.id.in_(["laptop-host", "oppo"])).delete(synchronize_session=False)
+        db.commit()
 
-    # Seed laptop
-    devices_registry["laptop-host"] = {
-        "id": "laptop-host",
-        "name": "Kali Tactical Laptop",
-        "model": "ThinkPad Kali-Linux 2026",
-        "role": "laptop",
-        "lat": base_lat,
-        "lng": base_lng,
-        "accuracy": 15.0,
-        "battery": 88,
-        "is_charging": True,
-        "speed": 0.0,
-        "heading": 0.0,
-        "status": "online",
-        "last_seen": time.time(),
-        "siren_active": False,
-        "strobe_active": False,
-        "leash_active": True,
-        "leash_radius": 100.0,
-        "address": laptop_loc.get("address", "Ahmedabad, Gujarat, India")
-    }
+        base_lat = 23.168191
+        base_lng = 72.822328
+        base_addr = "Dahegam, Gandhinagar, Gujarat, India"
 
-    # Seed Realistic Fleet Phones ("Anyone Data" out-of-the-box)
-    devices_registry["phone-alpha-01"] = {
-        "id": "phone-alpha-01",
-        "name": "Pixel-Node 01 (Primary)",
-        "model": "Google Pixel 8 Pro",
-        "role": "mobile",
-        "lat": base_lat + 0.0012,
-        "lng": base_lng + 0.0008,
-        "accuracy": 4.2,
-        "battery": 94,
-        "is_charging": False,
-        "speed": 1.4,
-        "heading": 42.0,
-        "status": "online",
-        "last_seen": time.time() - 3,
-        "siren_active": False,
-        "strobe_active": False,
-        "leash_active": True,
-        "leash_radius": 50.0,
-        "address": f"Near {laptop_loc.get('city', 'Base')}"
-    }
+        # 2. Ensure laptop-host (Kali Tactical Laptop) exists in DB
+        kali = db.query(FleetDeviceEntity).filter(FleetDeviceEntity.id == "laptop-host").first()
+        if not kali:
+            kali = FleetDeviceEntity(
+                id="laptop-host",
+                name="Kali Tactical Laptop",
+                model="ThinkPad Kali-Linux Rolling",
+                role="laptop",
+                lat=base_lat,
+                lng=base_lng,
+                accuracy=10.0,
+                battery=88,
+                is_charging=True,
+                speed=0.0,
+                heading=0.0,
+                status="online",
+                last_seen=time.time(),
+                siren_active=False,
+                strobe_active=False,
+                leash_active=True,
+                leash_radius=100.0,
+                address=base_addr,
+                camera_active=False,
+                mic_active=False
+            )
+            db.add(kali)
+            db.commit()
+            db.refresh(kali)
+        else:
+            # Pin to Dahegam
+            kali.lat = base_lat
+            kali.lng = base_lng
+            kali.address = base_addr
+            kali.name = "Kali Tactical Laptop"
+            db.commit()
 
-    devices_registry["phone-field-02"] = {
-        "id": "phone-field-02",
-        "name": "Galaxy-Field 02",
-        "model": "Samsung Galaxy S24 Ultra",
-        "role": "mobile",
-        "lat": base_lat - 0.0028,
-        "lng": base_lng + 0.0031,
-        "accuracy": 7.8,
-        "battery": 67,
-        "is_charging": False,
-        "speed": 0.0,
-        "heading": 180.0,
-        "status": "online",
-        "last_seen": time.time() - 15,
-        "siren_active": False,
-        "strobe_active": False,
-        "leash_active": False,
-        "leash_radius": 150.0,
-        "address": f"Sector 4, {laptop_loc.get('city', 'Base')}"
-    }
+        # 3. Ensure oppo (Oppo Mobile Phone) exists in DB
+        oppo = db.query(FleetDeviceEntity).filter(FleetDeviceEntity.id == "oppo").first()
+        if not oppo:
+            oppo = FleetDeviceEntity(
+                id="oppo",
+                name="Oppo Mobile Phone",
+                model="Oppo Android Fleet Node",
+                role="mobile",
+                lat=base_lat,
+                lng=base_lng,
+                accuracy=8.0,
+                battery=95,
+                is_charging=False,
+                speed=0.0,
+                heading=0.0,
+                status="online",
+                last_seen=time.time(),
+                siren_active=False,
+                strobe_active=False,
+                leash_active=True,
+                leash_radius=100.0,
+                address=base_addr,
+                camera_active=False,
+                mic_active=False
+            )
+            db.add(oppo)
+            db.commit()
+            db.refresh(oppo)
 
-    devices_registry["phone-recon-03"] = {
-        "id": "phone-recon-03",
-        "name": "OnePlus-Recon 03",
-        "model": "OnePlus 12 Tactical",
-        "role": "mobile",
-        "lat": base_lat + 0.0055,
-        "lng": base_lng - 0.0042,
-        "accuracy": 12.0,
-        "battery": 41,
-        "is_charging": True,
-        "speed": 18.5,
-        "heading": 290.0,
-        "status": "online",
-        "last_seen": time.time() - 45,
-        "siren_active": False,
-        "strobe_active": False,
-        "leash_active": True,
-        "leash_radius": 300.0,
-        "address": f"Outer Ring Road, {laptop_loc.get('city', 'Base')}"
-    }
+        # 4. Populate memory registry exclusively with Kali and Oppo
+        devices_registry.clear()
+        devices_registry["laptop-host"] = entity_to_dict(kali)
+        devices_registry["oppo"] = entity_to_dict(oppo)
+
+        # Clean old breadcrumbs
+        db.query(LocationBreadcrumbEntity).filter(~LocationBreadcrumbEntity.device_id.in_(["laptop-host", "oppo"])).delete(synchronize_session=False)
+        db.commit()
+
+    except Exception as e:
+        print(f"[TRACKING-DB] Error initializing fleet in DB: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 init_default_fleet()
 
 @router.get("/fleet")
 async def get_fleet_telemetry():
     now = time.time()
-    
-    # Update laptop location fresh if needed
-    laptop = devices_registry.get("laptop-host")
-    if laptop:
-        loc = geolocation_service.get_laptop_location()
-        laptop["lat"] = loc["lat"]
-        laptop["lng"] = loc["lng"]
-        laptop["address"] = loc["address"]
-        laptop["last_seen"] = now
+    db = SessionLocal()
+    try:
+        entities = db.query(FleetDeviceEntity).filter(FleetDeviceEntity.id.in_(["laptop-host", "oppo"])).all()
+        device_list = []
+        for ent in entities:
+            d = entity_to_dict(ent)
+            diff = now - (d["last_seen"] or 0)
+            if diff < 60:
+                d["status"] = "online"
+            elif diff < 300:
+                d["status"] = "idle"
+            else:
+                d["status"] = "offline"
+            device_list.append(d)
+            devices_registry[ent.id] = d
 
-    device_list = []
-    for d in devices_registry.values():
-        # Set status based on last_seen
-        diff = now - d["last_seen"]
-        if diff < 60:
-            d["status"] = "online"
-        elif diff < 300:
-            d["status"] = "idle"
-        else:
-            d["status"] = "offline"
-        device_list.append(d)
-
-    return {
-        "success": True,
-        "total": len(device_list),
-        "online_count": sum(1 for d in device_list if d["status"] == "online"),
-        "devices": device_list,
-        "geofence": geofence_state,
-        "server_time": now
-    }
+        return {
+            "success": True,
+            "total": len(device_list),
+            "online_count": sum(1 for d in device_list if d["status"] == "online"),
+            "devices": device_list,
+            "geofence": geofence_state,
+            "server_time": now
+        }
+    finally:
+        db.close()
 
 @router.post("/device/update")
 async def update_device_location(update: DeviceUpdate):
     now = time.time()
-    dev_id = update.device_id
-    
-    device = devices_registry.get(dev_id, {
-        "id": dev_id,
-        "name": update.name or f"Device {dev_id[:6]}",
-        "model": update.model or "Android Smartphone",
-        "role": update.role or "mobile",
-        "siren_active": False,
-        "strobe_active": False,
-        "leash_active": True,
-        "leash_radius": 100.0
-    })
+    raw_id = update.device_id
+    # Always normalize mobile fleet phone to "oppo" unless it's laptop-host
+    target_id = "laptop-host" if raw_id == "laptop-host" else "oppo"
 
-    if update.name:
-        device["name"] = update.name
-    if update.model:
-        device["model"] = update.model
-    if update.role:
-        device["role"] = update.role
+    lat = update.lat
+    lng = update.lng
+    # Detect Reliance Jio / Gujarat cellular tower ISP Gateway in Ahmedabad
+    if 23.00 <= lat <= 23.09 and 72.50 <= lng <= 72.63:
+        lat = 23.168191
+        lng = 72.822328
+        addr = "Atul Society, Dahegam, Dehgam Taluka, Gandhinagar"
+    else:
+        addr = geolocation_service.reverse_geocode(lat, lng)
 
-    device["lat"] = update.lat
-    device["lng"] = update.lng
-    device["accuracy"] = update.accuracy or 10.0
-    if update.battery is not None:
-        device["battery"] = update.battery
-    if update.is_charging is not None:
-        device["is_charging"] = update.is_charging
-    if update.speed is not None:
-        device["speed"] = update.speed
-    if update.heading is not None:
-        device["heading"] = update.heading
-    if update.altitude is not None:
-        device["altitude"] = update.altitude
-    device["last_seen"] = now
-    device["status"] = "online"
+    db = SessionLocal()
+    try:
+        device_ent = db.query(FleetDeviceEntity).filter(FleetDeviceEntity.id == target_id).first()
+        if not device_ent:
+            device_ent = FleetDeviceEntity(
+                id=target_id,
+                name="Oppo Mobile Phone" if target_id == "oppo" else "Kali Tactical Laptop",
+                model=update.model or ("Oppo Smartphone" if target_id == "oppo" else "Kali Host"),
+                role="mobile" if target_id == "oppo" else "laptop",
+                lat=lat,
+                lng=lng,
+                accuracy=update.accuracy or 10.0,
+                battery=update.battery or 100,
+                is_charging=update.is_charging or False,
+                speed=update.speed or 0.0,
+                heading=update.heading or 0.0,
+                altitude=update.altitude or 0.0,
+                status="online",
+                last_seen=now,
+                siren_active=False,
+                strobe_active=False,
+                leash_active=True,
+                leash_radius=100.0,
+                address=addr
+            )
+            db.add(device_ent)
+        else:
+            if update.name and update.name.strip():
+                device_ent.name = update.name.strip()
+            if update.model:
+                device_ent.model = update.model
+            device_ent.lat = lat
+            device_ent.lng = lng
+            device_ent.address = addr
+            if update.accuracy is not None:
+                device_ent.accuracy = update.accuracy
+            if update.battery is not None:
+                device_ent.battery = update.battery
+            if update.is_charging is not None:
+                device_ent.is_charging = update.is_charging
+            if update.speed is not None:
+                device_ent.speed = update.speed
+            if update.heading is not None:
+                device_ent.heading = update.heading
+            if update.altitude is not None:
+                device_ent.altitude = update.altitude
+            device_ent.last_seen = now
+            device_ent.status = "online"
 
-    devices_registry[dev_id] = device
+        db.commit()
+        db.refresh(device_ent)
 
-    # Append to breadcrumbs trail (cap at 200 items)
-    breadcrumbs_history.append({
-        "device_id": dev_id,
-        "lat": update.lat,
-        "lng": update.lng,
-        "speed": update.speed,
-        "timestamp": now
-    })
-    if len(breadcrumbs_history) > 200:
-        breadcrumbs_history.pop(0)
+        d_dict = entity_to_dict(device_ent)
+        devices_registry[target_id] = d_dict
 
-    return {"success": True, "device": device}
+        # Log breadcrumb
+        breadcrumb = LocationBreadcrumbEntity(
+            device_id=target_id,
+            lat=update.lat,
+            lng=update.lng,
+            speed=update.speed or 0.0,
+            timestamp=now
+        )
+        db.add(breadcrumb)
+        db.commit()
+
+        # Update in-memory trail
+        breadcrumbs_history.append({
+            "device_id": target_id,
+            "lat": update.lat,
+            "lng": update.lng,
+            "speed": update.speed or 0.0,
+            "timestamp": now
+        })
+        if len(breadcrumbs_history) > 200:
+            breadcrumbs_history.pop(0)
+
+        return {
+            "success": True,
+            "device": d_dict,
+            "actions": {
+                "siren": bool(device_ent.siren_active),
+                "strobe": bool(device_ent.strobe_active),
+                "camera": bool(device_ent.camera_active),
+                "mic": bool(device_ent.mic_active),
+                "mirror": bool(devices_registry.get(target_id, {}).get("mirror_active", False))
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database update error: {str(e)}")
+    finally:
+        db.close()
 
 @router.post("/device/{device_id}/action")
 async def execute_device_action(device_id: str, act: DeviceAction):
-    device = devices_registry.get(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="Device not found in registry")
+    # Normalize ID to either laptop-host or oppo
+    target_id = "laptop-host" if device_id == "laptop-host" else "oppo"
+    db = SessionLocal()
+    try:
+        device_ent = db.query(FleetDeviceEntity).filter(FleetDeviceEntity.id == target_id).first()
+        if not device_ent:
+            raise HTTPException(status_code=404, detail="Device not found in database")
 
-    action = act.action.lower()
-    if action == "siren":
-        new_val = not device.get("siren_active", False) if act.value is None else act.value
-        device["siren_active"] = new_val
-        # If targeting laptop, play audio alert
-        if device.get("role") == "laptop":
+        action = act.action.lower()
+        if action == "siren":
+            new_val = not bool(device_ent.siren_active) if act.value is None else act.value
+            device_ent.siren_active = new_val
+            db.commit()
+            devices_registry[target_id]["siren_active"] = new_val
+
+            # Blast physical siren on laptop speakers
+            if new_val:
+                intercom_service.start_emergency_siren(duration_sec=30)
+            else:
+                intercom_service.stop_emergency_siren()
+
+            return {"success": True, "action": "siren", "device_id": target_id, "active": new_val}
+
+        elif action == "strobe":
+            new_val = not bool(device_ent.strobe_active) if act.value is None else act.value
+            device_ent.strobe_active = new_val
+            db.commit()
+            devices_registry[target_id]["strobe_active"] = new_val
+            return {"success": True, "action": "strobe", "device_id": target_id, "active": new_val}
+
+        elif action == "camera":
+            new_val = not bool(device_ent.camera_active) if act.value is None else act.value
+            device_ent.camera_active = new_val
+            db.commit()
+            devices_registry[target_id]["camera_active"] = new_val
+            return {"success": True, "action": "camera", "device_id": target_id, "active": new_val}
+
+        elif action == "mic":
+            new_val = not bool(device_ent.mic_active) if act.value is None else act.value
+            device_ent.mic_active = new_val
+            db.commit()
+            devices_registry[target_id]["mic_active"] = new_val
+            return {"success": True, "action": "mic", "device_id": target_id, "active": new_val}
+
+        elif action == "mirror":
+            cur_mirror = bool(devices_registry.get(target_id, {}).get("mirror_active", False))
+            new_val = not cur_mirror if act.value is None else act.value
+            devices_registry[target_id]["mirror_active"] = new_val
             try:
-                if new_val:
-                    subprocess.Popen(["spd-say", "-r", "10", "ALERT: Tactical Emergency Siren Beacon Triggered"], stderr=subprocess.DEVNULL)
+                import app.api.remote as remote_mod
+                remote_mod._mobile_mirror_requested = new_val
             except Exception:
                 pass
-        return {"success": True, "action": "siren", "device_id": device_id, "active": new_val}
+            return {"success": True, "action": "mirror", "device_id": target_id, "active": new_val}
 
-    elif action == "strobe":
-        new_val = not device.get("strobe_active", False) if act.value is None else act.value
-        device["strobe_active"] = new_val
-        return {"success": True, "action": "strobe", "device_id": device_id, "active": new_val}
+        elif action == "leash":
+            new_val = not bool(device_ent.leash_active) if act.value is None else act.value
+            device_ent.leash_active = new_val
+            db.commit()
+            devices_registry[target_id]["leash_active"] = new_val
+            return {"success": True, "action": "leash", "device_id": target_id, "active": new_val}
 
-    elif action == "leash":
-        new_val = not device.get("leash_active", False) if act.value is None else act.value
-        device["leash_active"] = new_val
-        return {"success": True, "action": "leash", "device_id": device_id, "active": new_val}
+        elif action == "lock":
+            if target_id == "laptop-host":
+                try:
+                    subprocess.run(["xflock4"], timeout=2)
+                except Exception:
+                    pass
+            return {"success": True, "action": "lock", "device_id": target_id}
 
-    elif action == "lock":
-        if device.get("role") == "laptop":
-            try:
-                subprocess.run(["xflock4"], timeout=2)
-            except Exception:
-                pass
-        return {"success": True, "action": "lock", "device_id": device_id}
-
-    return {"success": False, "message": f"Unknown action {act.action}"}
+        return {"success": False, "message": f"Unknown action {act.action}"}
+    finally:
+        db.close()
 
 @router.get("/proximity")
 async def get_proximity_matrix():
     laptop = devices_registry.get("laptop-host")
-    if not laptop:
-        return {"success": False, "error": "Laptop host not registered"}
+    oppo = devices_registry.get("oppo")
+    if not laptop or not oppo:
+        return {"success": False, "error": "Devices not ready"}
 
     host_lat = laptop["lat"]
     host_lng = laptop["lng"]
 
-    matrix = []
+    dist = geolocation_service.haversine_distance(host_lat, host_lng, oppo["lat"], oppo["lng"])
+    bearing = geolocation_service.calculate_bearing(host_lat, host_lng, oppo["lat"], oppo["lng"])
+    is_leashed = oppo.get("leash_active", False)
+    leash_limit = oppo.get("leash_radius", 100.0)
+    leash_broken = is_leashed and (dist > leash_limit)
+
+    matrix = [{
+        "target_id": "oppo",
+        "target_name": oppo.get("name", "Oppo Mobile Phone"),
+        "model": oppo.get("model", "Oppo Smartphone"),
+        "distance_meters": dist,
+        "bearing_degrees": bearing,
+        "battery": oppo.get("battery", 100),
+        "leash_active": is_leashed,
+        "leash_radius": leash_limit,
+        "leash_broken": leash_broken
+    }]
+
     broken_leashes = []
-
-    for dev in devices_registry.values():
-        if dev["id"] == "laptop-host":
-            continue
-        
-        dist = geolocation_service.haversine_distance(host_lat, host_lng, dev["lat"], dev["lng"])
-        bearing = geolocation_service.calculate_bearing(host_lat, host_lng, dev["lat"], dev["lng"])
-        
-        is_leashed = dev.get("leash_active", False)
-        leash_limit = dev.get("leash_radius", 100.0)
-        leash_broken = is_leashed and (dist > leash_limit)
-
-        if leash_broken:
-            broken_leashes.append({
-                "device_id": dev["id"],
-                "device_name": dev["name"],
-                "distance": dist,
-                "limit": leash_limit
-            })
-
-        matrix.append({
-            "target_id": dev["id"],
-            "target_name": dev["name"],
-            "model": dev["model"],
-            "distance_meters": dist,
-            "bearing_degrees": bearing,
-            "battery": dev["battery"],
-            "leash_active": is_leashed,
-            "leash_radius": leash_limit,
-            "leash_broken": leash_broken
+    if leash_broken:
+        broken_leashes.append({
+            "device_id": "oppo",
+            "device_name": oppo.get("name", "Oppo Mobile Phone"),
+            "distance": dist,
+            "limit": leash_limit
         })
-
-    # Sort nearest first
-    matrix.sort(key=lambda x: x["distance_meters"])
 
     return {
         "success": True,
         "host_id": "laptop-host",
         "matrix": matrix,
         "broken_leashes": broken_leashes,
-        "nearest": matrix[0] if matrix else None
+        "nearest": matrix[0]
     }
 
 @router.get("/history")
 async def get_tracking_history():
-    return {
-        "success": True,
-        "count": len(breadcrumbs_history),
-        "history": breadcrumbs_history
-    }
+    db = SessionLocal()
+    try:
+        crumbs = db.query(LocationBreadcrumbEntity).order_by(LocationBreadcrumbEntity.timestamp.desc()).limit(100).all()
+        return {
+            "success": True,
+            "count": len(crumbs),
+            "history": [
+                {
+                    "device_id": c.device_id,
+                    "lat": c.lat,
+                    "lng": c.lng,
+                    "speed": c.speed,
+                    "timestamp": c.timestamp
+                }
+                for c in reversed(crumbs)
+            ]
+        }
+    finally:
+        db.close()
 
 @router.post("/geofence")
 async def update_geofence(geo: GeofenceConfig):
     global geofence_state
     geofence_state = {
         "enabled": geo.enabled,
-        "name": geo.name or "Safe Zone",
+        "name": geo.name or "Dahegam Operations HQ",
         "center_lat": geo.center_lat,
         "center_lng": geo.center_lng,
         "radius_meters": geo.radius_meters,

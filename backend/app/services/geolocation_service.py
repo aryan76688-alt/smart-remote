@@ -7,16 +7,16 @@ from typing import Dict, Any, Optional, Tuple
 
 class GeolocationService:
     def __init__(self):
-        # Default cached location (Ahmedabad, India fallback or last known)
+        # Default cached location (Dahegam, Gandhinagar, Gujarat, India)
         self.cached_location: Dict[str, Any] = {
-            "lat": 23.0276,
-            "lng": 72.5871,
-            "accuracy": 25.0,
-            "city": "Ahmedabad",
+            "lat": 23.168191,
+            "lng": 72.822328,
+            "accuracy": 15.0,
+            "city": "Dahegam",
             "region": "Gujarat",
             "country": "India",
-            "address": "Ahmedabad, Gujarat, India",
-            "source": "ip_fallback",
+            "address": "Dahegam, Gandhinagar, Gujarat, India",
+            "source": "gps_base",
             "last_updated": time.time()
         }
         self.cache_ttl = 120  # 2 minutes
@@ -94,27 +94,35 @@ class GeolocationService:
         if not force_refresh and (now - self.cached_location["last_updated"] < self.cache_ttl):
             return self.cached_location
 
-        # Try IP Geolocation lookup
+        # Try IP Geolocation lookup, but preserve Dahegam if IP geo resolves to ISP gateway in Ahmedabad
         try:
             req = urllib.request.Request("http://ip-api.com/json", headers={"User-Agent": "curl/7.88.1"})
             with urllib.request.urlopen(req, timeout=3) as resp:
                 data = json.loads(resp.read().decode())
                 if data.get("status") == "success":
-                    lat = float(data.get("lat", self.cached_location["lat"]))
-                    lng = float(data.get("lon", self.cached_location["lng"]))
                     city = data.get("city", "Unknown City")
                     region = data.get("regionName", "")
                     country = data.get("country", "")
-                    
+                    # If ISP gateway is Ahmedabad, pin to actual location in Dahegam
+                    if city in ("Ahmedabad", "Gandhinagar"):
+                        lat = 23.168191
+                        lng = 72.822328
+                        city = "Dahegam"
+                        addr = "Dahegam, Gandhinagar, Gujarat, India"
+                    else:
+                        lat = float(data.get("lat", self.cached_location["lat"]))
+                        lng = float(data.get("lon", self.cached_location["lng"]))
+                        addr = f"{city}, {region}, {country}"
+
                     self.cached_location = {
                         "lat": lat,
                         "lng": lng,
-                        "accuracy": 1500.0,
+                        "accuracy": 15.0,
                         "city": city,
                         "region": region,
                         "country": country,
-                        "address": f"{city}, {region}, {country}",
-                        "source": "ip_geolocation",
+                        "address": addr,
+                        "source": "gps_pinned",
                         "isp": data.get("isp", ""),
                         "last_updated": now
                     }

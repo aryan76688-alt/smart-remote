@@ -202,11 +202,83 @@ export const GlobalAccessModal: React.FC<GlobalAccessModalProps> = ({ isOpen, on
                 </div>
               </div>
 
-              {/* Public URL Field */}
+              {/* Permanent Cloudflare Custom Domains */}
+              <div className="space-y-2 text-left">
+                <label className="text-[11px] uppercase tracking-wider font-semibold text-text-secondary flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-primary font-bold">
+                    <Globe className="w-3.5 h-3.5" />
+                    Cloudflare Worker Edge & Custom Domain
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Always Online
+                  </span>
+                </label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 p-1.5 bg-surface-hover/80 border border-primary/30 rounded-xl">
+                    <span className="px-2 py-1 text-[10px] font-mono font-bold bg-primary/20 text-primary rounded">PRIMARY</span>
+                    <input
+                      type="text"
+                      readOnly
+                      value="https://smart-remote.aryan76688.workers.dev"
+                      className="flex-1 bg-transparent px-1 py-1 text-xs font-mono text-text-primary font-bold focus:outline-none select-all"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText("https://smart-remote.aryan76688.workers.dev");
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary text-slate-900 hover:brightness-110 flex items-center gap-1 transition-all active:scale-95"
+                    >
+                      <Copy className="w-3 h-3" /> Copy
+                    </button>
+                    <a
+                      href="https://smart-remote.aryan76688.workers.dev"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors"
+                      title="Open Cloudflare Worker"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-1.5 bg-surface-hover/80 border border-border rounded-xl">
+                    <span className="px-2 py-1 text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 rounded">CUSTOM</span>
+                    <input
+                      type="text"
+                      readOnly
+                      value="https://remote.shreeji7.com"
+                      className="flex-1 bg-transparent px-1 py-1 text-xs font-mono text-text-secondary font-medium focus:outline-none select-all"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText("https://remote.shreeji7.com");
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-surface border border-border hover:bg-surface-hover flex items-center gap-1 transition-all active:scale-95"
+                    >
+                      <Copy className="w-3 h-3" /> Copy
+                    </button>
+                    <a
+                      href="https://remote.shreeji7.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors"
+                      title="Open custom domain"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Quick Tunnel URL Field */}
               {isLive && tunnel?.public_url && (
                 <div className="space-y-2 text-left">
                   <label className="text-[11px] uppercase tracking-wider font-semibold text-text-secondary flex items-center justify-between">
-                    <span>Public HTTPS URL</span>
+                    <span>Active Quick Tunnel URL</span>
                     {pingMs !== null && (
                       <span className="text-[10px] font-mono text-green-400 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping" />

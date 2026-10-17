@@ -11,6 +11,8 @@ class Settings:
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     SCREEN_STREAM_FPS: int = int(os.getenv("SCREEN_STREAM_FPS", "25"))
     SCREEN_STREAM_QUALITY: int = int(os.getenv("SCREEN_STREAM_QUALITY", "50"))
+    CLOUDFLARE_ACCOUNT_ID: str = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+    CLOUDFLARE_API_TOKEN: str = os.getenv("CLOUDFLARE_API_TOKEN", "")
     
     @property
     def canonical_allowed_root(self) -> Path:

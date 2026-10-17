@@ -271,7 +271,7 @@ class InputController:
             "kp_add": "KP_Add", "kp_subtract": "KP_Subtract", "kp_multiply": "KP_Multiply",
             "kp_divide": "KP_Divide", "kp_enter": "KP_Enter", "kp_decimal": "KP_Decimal",
         }
-        target_key = key_map.get(key.lower(), key)
+        target_key = key_map.get(key.lower(), key_map.get(key, key))
         if modifiers:
             mod_prefix = "+".join([m.lower() for m in modifiers])
             combo = f"{mod_prefix}+{target_key}"
@@ -280,12 +280,41 @@ class InputController:
             ok, _ = self._run_xdotool("key", target_key)
         return ok
 
+    def _normalize_key(self, key: str) -> str:
+        key_map = {
+            "enter": "Return", "return": "Return",
+            "backspace": "BackSpace",
+            "tab": "Tab",
+            "esc": "Escape", "escape": "Escape",
+            "space": "space", " ": "space",
+            "caps": "Caps_Lock", "capslock": "Caps_Lock",
+            "up": "Up", "arrowup": "Up",
+            "down": "Down", "arrowdown": "Down",
+            "left": "Left", "arrowleft": "Left",
+            "right": "Right", "arrowright": "Right",
+            "super": "Super_L", "win": "Super_L", "windows": "Super_L", "meta": "Super_L",
+            "ctrl": "Control_L", "control": "Control_L",
+            "alt": "Alt_L",
+            "shift": "Shift_L",
+            "delete": "Delete", "del": "Delete",
+            "insert": "Insert", "ins": "Insert",
+            "home": "Home", "end": "End",
+            "pageup": "Page_Up", "page_up": "Page_Up",
+            "pagedown": "Page_Down", "page_down": "Page_Down",
+            "prtscn": "Print", "print": "Print", "printscreen": "Print",
+            "f1": "F1", "f2": "F2", "f3": "F3", "f4": "F4", "f5": "F5", "f6": "F6",
+            "f7": "F7", "f8": "F8", "f9": "F9", "f10": "F10", "f11": "F11", "f12": "F12",
+        }
+        return key_map.get(key.lower(), key_map.get(key, key))
+
     def key_down(self, key: str) -> bool:
-        ok, _ = self._run_xdotool("keydown", key)
+        normalized = self._normalize_key(key)
+        ok, _ = self._run_xdotool("keydown", normalized)
         return ok
 
     def key_up(self, key: str) -> bool:
-        ok, _ = self._run_xdotool("keyup", key)
+        normalized = self._normalize_key(key)
+        ok, _ = self._run_xdotool("keyup", normalized)
         return ok
 
     def type_text(self, text: str) -> bool:

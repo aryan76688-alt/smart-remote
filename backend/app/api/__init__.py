@@ -20,10 +20,12 @@ from app.api.multimedia import router as multimedia_router
 from app.api.security import router as security_router
 from app.api.clipboard import router as clipboard_router
 from app.api.tracking import router as tracking_router
+from app.api.phone_files import router as phone_files_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(system_router)
 api_router.include_router(files_router)
+api_router.include_router(phone_files_router)
 api_router.include_router(devices_router)
 api_router.include_router(history_router)
 api_router.include_router(assistant_router)

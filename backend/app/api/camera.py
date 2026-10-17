@@ -46,7 +46,7 @@ def stream_laptop_camera(quality: int = Query(75, ge=30, le=95), fps: int = Quer
 @router.api_route("/audio", methods=["GET", "HEAD"])
 @router.api_route("/audio/stream", methods=["GET", "HEAD"])
 def stream_laptop_audio(request: Request):
-    """Real-time live microphone audio stream from Kali Linux laptop for CCTV surveillance (supports noise cancellation)."""
+    """Real-time live microphone audio stream from Kali Linux laptop for CCTV surveillance in MP3 format."""
     raw_denoise = request.query_params.get("denoise")
     denoise = None if raw_denoise is None else (raw_denoise in ("1", "true", "True"))
     if request.method == "HEAD":
@@ -64,7 +64,7 @@ def stream_laptop_audio(request: Request):
 
     return StreamingResponse(
         camera_manager.audio_stream_generator(denoise=denoise),
-        media_type="audio/webm",
+        media_type="audio/mpeg",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
@@ -89,25 +89,147 @@ def get_laptop_snapshot(quality: int = Query(90, ge=30, le=100)):
 async def receive_phone_frame(request: Request):
     """Receive camera frame from mobile phone and show on Kali laptop screen."""
     content_type = request.headers.get("content-type", "")
+    facing = request.headers.get("x-camera-facing", "back")
+    torch = request.headers.get("x-camera-torch", "0") in ("1", "true")
     if "application/json" in content_type:
         body = await request.json()
         b64_str = body.get("image", "")
+        facing = body.get("facing", facing)
+        torch = body.get("torch", torch)
         if b64_str:
             if "," in b64_str:
                 b64_str = b64_str.split(",", 1)[1]
             try:
                 frame_bytes = base64.b64decode(b64_str)
-                camera_manager.receive_phone_frame(frame_bytes)
+                camera_manager.receive_phone_frame(frame_bytes, facing=facing, torch=torch)
                 return {"success": True}
             except Exception as e:
                 return JSONResponse(status_code=400, content={"detail": str(e)})
     else:
         frame_bytes = await request.body()
         if frame_bytes:
-            camera_manager.receive_phone_frame(frame_bytes)
+            camera_manager.receive_phone_frame(frame_bytes, facing=facing, torch=torch)
             return {"success": True}
 
     return JSONResponse(status_code=400, content={"detail": "No image data received"})
+
+@router.get("/phone/stream")
+def stream_phone_camera():
+    """Live MJPEG video stream of mobile camera feed."""
+    return StreamingResponse(
+        camera_manager.phone_stream_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@router.get("/phone/snapshot")
+def get_phone_snapshot():
+    """Single JPEG snapshot of mobile phone camera."""
+    frame = camera_manager.get_latest_phone_frame()
+    if frame:
+        return Response(content=frame, media_type="image/jpeg")
+    standby = camera_manager._generate_error_frame("OPPO Camera Standby")
+    return Response(content=standby, media_type="image/jpeg")
+
+@router.post("/phone/audio-chunk")
+async def receive_phone_audio_chunk(request: Request):
+    """Receives live microphone audio chunk from mobile phone (PCM 16-bit 16kHz)."""
+    body = await request.body()
+    if body:
+        camera_manager.receive_phone_audio_chunk(body)
+        return {"success": True, "bytes": len(body)}
+    return JSONResponse(status_code=400, content={"detail": "Empty audio chunk"})
+
+@router.api_route("/phone/audio-stream", methods=["GET", "HEAD"])
+def stream_phone_audio(request: Request):
+    """Real-time live audio stream listening to mobile phone microphone encoded as MP3."""
+    if request.method == "HEAD":
+        return Response(
+            content=b"",
+            media_type="audio/mpeg",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+                "Accept-Ranges": "none",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    return StreamingResponse(
+        camera_manager.phone_audio_stream_generator(),
+        media_type="audio/mpeg",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Accept-Ranges": "none",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@router.get("/phone/status")
+def get_phone_stream_status():
+    """Returns active state of phone camera and microphone feeds."""
+    import time
+    cam_active = bool(camera_manager.last_phone_update and (time.time() - camera_manager.last_phone_update < 5.0))
+    audio_active = bool(camera_manager.last_phone_audio_time and (time.time() - camera_manager.last_phone_audio_time < 5.0))
+    return {
+        "camera_active": cam_active,
+        "audio_active": audio_active,
+        "fps": getattr(camera_manager, "phone_fps", 0.0),
+        "facing": getattr(camera_manager, "phone_facing", "back"),
+        "torch": getattr(camera_manager, "phone_torch", False),
+        "last_frame_age_sec": round(time.time() - camera_manager.last_phone_update, 1) if camera_manager.last_phone_update else 999.0,
+        "last_audio_age_sec": round(time.time() - camera_manager.last_phone_audio_time, 1) if camera_manager.last_phone_audio_time else 999.0,
+    }
+
+@router.post("/phone/control")
+async def control_phone_camera(request: Request):
+    """Remote control command for phone camera (toggle facing, torch, mic)."""
+    body = await request.json()
+    action = body.get("action", "")
+    from app.api.tracking import devices_registry, SessionLocal, FleetDeviceEntity
+    target_id = "oppo"
+    db = SessionLocal()
+    try:
+        device_ent = db.query(FleetDeviceEntity).filter(FleetDeviceEntity.id == target_id).first()
+        if not device_ent:
+            return {"success": False, "error": "Device not found"}
+        if action == "flip_camera":
+            new_facing = "front" if getattr(camera_manager, "phone_facing", "back") == "back" else "back"
+            camera_manager.phone_facing = new_facing
+            return {"success": True, "facing": new_facing}
+        elif action == "toggle_torch":
+            new_torch = not getattr(camera_manager, "phone_torch", False)
+            camera_manager.phone_torch = new_torch
+            device_ent.strobe_active = new_torch
+            db.commit()
+            return {"success": True, "torch": new_torch}
+        elif action == "stop_camera":
+            device_ent.camera_active = False
+            db.commit()
+            camera_manager.stop_phone_stream()
+            return {"success": True, "camera_active": False}
+        elif action == "start_camera":
+            device_ent.camera_active = True
+            db.commit()
+            return {"success": True, "camera_active": True}
+        elif action == "stop_mic":
+            device_ent.mic_active = False
+            db.commit()
+            return {"success": True, "mic_active": False}
+        elif action == "start_mic":
+            device_ent.mic_active = True
+            db.commit()
+            return {"success": True, "mic_active": True}
+        return {"success": False, "error": f"Unknown action: {action}"}
+    finally:
+        db.close()
 
 @router.post("/phone/stop")
 def stop_phone_camera():
