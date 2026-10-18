@@ -1,5 +1,5 @@
 {
-  "cloudflare_url": "https://disk-vision-township-gear.trycloudflare.com",
+  "cloudflare_url": "https://java-cleaning-nice-registry.trycloudflare.com",
   "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
   "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
   "additional_domains": [
@@ -11,6 +11,6 @@
   "local_wifi_url": "http://192.168.42.221:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-17T17:55:32.481469",
-  "timestamp": 1792259732
+  "updated_at": "2026-10-18T02:34:55.117482",
+  "timestamp": 1792290895
 }
