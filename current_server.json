@@ -1,5 +1,5 @@
 {
-  "cloudflare_url": "https://thanksgiving-opening-visitor-highlight.trycloudflare.com",
+  "cloudflare_url": "https://translate-larry-vhs-approximate.trycloudflare.com",
   "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
   "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
   "additional_domains": [
@@ -8,9 +8,9 @@
     "https://smart-remote.shreeji7.com"
   ],
   "tailscale_url": "http://100.69.194.11:7070",
-  "local_wifi_url": "http://192.168.42.221:7070",
+  "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-18T02:49:58.144271",
-  "timestamp": 1792291798
+  "updated_at": "2026-10-19T04:42:44.184812",
+  "timestamp": 1792384964
 }
