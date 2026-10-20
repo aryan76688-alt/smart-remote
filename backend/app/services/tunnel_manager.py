@@ -286,67 +286,48 @@ class TunnelManager:
                                         cf_token = line.strip().split("=", 1)[1].strip()
 
                     if cf_account and cf_token:
-                        worker_script = f"""
-addEventListener('fetch', event => {{ event.respondWith(handleRequest(event.request)); }});
-const TARGET_BASE = "{public_url}";
-const CUSTOM_DOMAIN = "https://remote.shreeji7.com";
+                        import uuid
+                        hub_js_path = os.path.join(project_root, "backend", "cloudflare_worker_hub.js")
+                        if os.path.exists(hub_js_path):
+                            with open(hub_js_path, "r", encoding="utf-8") as f:
+                                worker_script = f.read().replace("__TARGET_BASE__", public_url)
+                        else:
+                            worker_script = f'const TARGET_BASE = "{public_url}";\n'
 
-async function handleRequest(request) {{
-  const url = new URL(request.url);
-  const targetUrl = new URL(url.pathname + url.search, TARGET_BASE);
-  const headers = new Headers(request.headers);
-  headers.set('host', new URL(TARGET_BASE).host);
-  headers.set('x-forwarded-host', url.host);
-  headers.set('x-forwarded-proto', 'https');
-  
-  if (request.headers.get('Upgrade') === 'websocket') {{
-    return fetch(targetUrl.toString(), {{ headers, body: request.body }});
-  }}
+                        boundary = '----WebKitFormBoundary' + uuid.uuid4().hex
+                        metadata = {
+                            'body_part': 'script',
+                            'bindings': [
+                                {
+                                    'type': 'kv_namespace',
+                                    'name': 'HUB_KV',
+                                    'namespace_id': 'f546d50caa2e4e6e8115c4c7070f4df2'
+                                }
+                            ]
+                        }
+                        multipart_body = (
+                            f'--{boundary}\r\n'
+                            f'Content-Disposition: form-data; name="metadata"\r\n'
+                            f'Content-Type: application/json\r\n\r\n'
+                            f'{json.dumps(metadata)}\r\n'
+                            f'--{boundary}\r\n'
+                            f'Content-Disposition: form-data; name="script"; filename="script.js"\r\n'
+                            f'Content-Type: application/javascript\r\n\r\n'
+                            f'{worker_script}\r\n'
+                            f'--{boundary}--\r\n'
+                        ).encode('utf-8')
 
-  try {{
-    const res = await fetch(targetUrl.toString(), {{
-      method: request.method,
-      headers: headers,
-      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
-      redirect: 'follow'
-    }});
-    const newHeaders = new Headers(res.headers);
-    newHeaders.set('Access-Control-Allow-Origin', '*');
-    newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    newHeaders.set('Access-Control-Allow-Headers', '*');
-    return new Response(res.body, {{ status: res.status, headers: newHeaders }});
-  }} catch(e) {{
-    try {{
-      const customUrl = new URL(url.pathname + url.search, CUSTOM_DOMAIN);
-      const customHeaders = new Headers(request.headers);
-      customHeaders.set('host', new URL(CUSTOM_DOMAIN).host);
-      return await fetch(customUrl.toString(), {{
-        method: request.method,
-        headers: customHeaders,
-        body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body
-      }});
-    }} catch(err2) {{
-      return new Response(JSON.stringify({{
-        error: 'Smart Remote Cloudflare Edge Gateway',
-        message: e.message,
-        target: TARGET_BASE,
-        custom_domain: CUSTOM_DOMAIN
-      }}), {{ status: 502, headers: {{ 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }} }});
-    }}
-  }}
-}}
-"""
                         cf_req = urllib.request.Request(
                             f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/workers/scripts/smart-remote",
-                            data=worker_script.encode("utf-8"),
+                            data=multipart_body,
                             headers={
                                 "Authorization": f"Bearer {cf_token}",
-                                "Content-Type": "application/javascript"
+                                "Content-Type": f"multipart/form-data; boundary={boundary}"
                             },
                             method="PUT"
                         )
                         with urllib.request.urlopen(cf_req, timeout=10) as resp:
-                            logger.info(f"Cloudflare Worker synced to new tunnel {public_url}: {resp.status}")
+                            logger.info(f"Cloudflare Worker Edge Hub synced to new tunnel {public_url}: {resp.status}")
                 except Exception as cf_err:
                     logger.warning(f"Failed to sync Cloudflare Worker: {cf_err}")
 

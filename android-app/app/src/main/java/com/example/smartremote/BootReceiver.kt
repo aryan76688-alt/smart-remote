@@ -4,12 +4,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.os.Build
 import android.util.Log
 
 /**
- * Autostarts SmartRemote when phone boots or when network connectivity (Wi-Fi / Mobile Data) changes.
+ * Autostarts SmartRemote background guard service when phone boots or when network connectivity changes.
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -21,7 +19,8 @@ class BootReceiver : BroadcastReceiver() {
                 action == "android.intent.action.LOCKED_BOOT_COMPLETED" ||
                 action == "android.intent.action.QUICKBOOT_POWERON" ||
                 action == "com.htc.intent.action.QUICKBOOT_POWERON" ||
-                action == Intent.ACTION_MY_PACKAGE_REPLACED
+                action == Intent.ACTION_MY_PACKAGE_REPLACED ||
+                action == Intent.ACTION_USER_PRESENT
 
         val isNetwork = action == ConnectivityManager.CONNECTIVITY_ACTION ||
                 action == "android.net.wifi.WIFI_STATE_CHANGED" ||
@@ -29,16 +28,11 @@ class BootReceiver : BroadcastReceiver() {
 
         if (isBoot || isNetwork) {
             try {
-                val launchIntent = Intent(context, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    putExtra("autostart_trigger", action)
-                }
-                context.startActivity(launchIntent)
-                Log.i("SmartRemoteBoot", "Successfully dispatched autostart Intent for $action")
+                // 1. Immediately start the 24/7 foreground daemon service
+                SmartRemoteDaemonService.start(context)
+                Log.i("SmartRemoteBoot", "Successfully started SmartRemoteDaemonService on $action")
             } catch (e: Exception) {
-                Log.e("SmartRemoteBoot", "Error launching MainActivity from BootReceiver: ${e.message}")
+                Log.e("SmartRemoteBoot", "Error starting SmartRemoteDaemonService: ${e.message}")
             }
         }
     }
