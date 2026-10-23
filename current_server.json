@@ -1,5 +1,5 @@
 {
-  "cloudflare_url": "https://toys-nose-garmin-liberal.trycloudflare.com",
+  "cloudflare_url": "https://reunion-enhancements-terrorist-instructors.trycloudflare.com",
   "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
   "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
   "additional_domains": [
@@ -11,6 +11,6 @@
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-23T15:51:10.510432",
-  "timestamp": 1792770670
+  "updated_at": "2026-10-23T17:13:51.410820",
+  "timestamp": 1792775631
 }
