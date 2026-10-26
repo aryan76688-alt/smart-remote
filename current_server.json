@@ -1,5 +1,5 @@
 {
-  "cloudflare_url": "https://panel-oral-granted-peak.trycloudflare.com",
+  "cloudflare_url": "https://differences-serious-mailto-newly.trycloudflare.com",
   "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
   "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
   "additional_domains": [
@@ -8,9 +8,9 @@
     "https://smart-remote.shreeji7.com"
   ],
   "tailscale_url": "http://100.69.194.11:7070",
-  "local_wifi_url": "http://192.168.1.5:7070",
+  "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-25T14:08:05.547591",
-  "timestamp": 1792937285
+  "updated_at": "2026-10-26T10:19:47.795668",
+  "timestamp": 1793009987
 }
