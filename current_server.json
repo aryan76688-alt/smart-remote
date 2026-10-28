@@ -1,5 +1,5 @@
 {
-  "cloudflare_url": "https://baseline-automated-electoral-nested.trycloudflare.com",
+  "cloudflare_url": "https://pet-passport-aims-upper.trycloudflare.com",
   "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
   "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
   "additional_domains": [
@@ -11,6 +11,6 @@
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-27T10:13:50.331455",
-  "timestamp": 1793096030
+  "updated_at": "2026-10-28T02:42:00.969897",
+  "timestamp": 1793155320
 }
