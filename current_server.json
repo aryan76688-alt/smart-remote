@@ -1,5 +1,5 @@
 {
-  "cloudflare_url": "https://possibly-paragraphs-portland-city.trycloudflare.com",
+  "cloudflare_url": "https://civic-tue-transition-moderator.trycloudflare.com",
   "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
   "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
   "additional_domains": [
@@ -11,6 +11,6 @@
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-28T03:40:48.884439",
-  "timestamp": 1793158848
+  "updated_at": "2026-10-29T00:51:41.434950",
+  "timestamp": 1793235101
 }
