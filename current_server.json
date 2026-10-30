@@ -1,5 +1,5 @@
 {
-  "cloudflare_url": "https://pets-mel-thereby-reporting.trycloudflare.com",
+  "cloudflare_url": "https://poet-southampton-chip-described.trycloudflare.com",
   "custom_domain_url": "https://smart-remote.aryan76688.workers.dev",
   "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
   "additional_domains": [
@@ -11,6 +11,6 @@
   "local_wifi_url": "http://192.168.31.141:7070",
   "tunnel_status": "active",
   "active_provider": "cloudflare",
-  "updated_at": "2026-10-29T14:03:17.293949",
-  "timestamp": 1793282597
+  "updated_at": "2026-10-30T02:23:30.124434",
+  "timestamp": 1793327010
 }
