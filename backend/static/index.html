@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" class="light" style="background-color: #F2F2F7; color: #1C1C1E;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Smart Remote — macOS & iOS Hub</title>
+    <meta name="description" content="Apple iOS & macOS Style Remote Controller over Tailscale & Cloudflare" />
+    <meta name="theme-color" content="#F2F2F7" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/pwa-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      html, body {
+        background-color: #F2F2F7 !important;
+        color: #1C1C1E;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow-x: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Inter, sans-serif;
+      }
+      @keyframes pulseSlow {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(0.98); }
+      }
+      .init-loader {
+        animation: pulseSlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+    </style>
+    <script>
+      // Anti-Stall / Self-Healing Mechanism
+      window.addEventListener('error', function (e) {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          console.warn('[SmartRemote] Asset failed to load, self-healing cache and reloading...', e);
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+              for (var reg of registrations) { reg.unregister(); }
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then(function (names) {
+              names.forEach(function (name) { caches.delete(name); });
+            });
+          }
+          setTimeout(function() { window.location.reload(true); }, 300);
+        }
+      }, true);
+
+      // Watchdog: If #root is empty after 2.5s, auto-heal and reload once
+      setTimeout(function() {
+        var root = document.getElementById('root');
+        if (root && (!root.children || root.children.length === 0 || root.querySelector('.init-loader'))) {
+          if (!sessionStorage.getItem('smart_remote_self_healed')) {
+            sessionStorage.setItem('smart_remote_self_healed', 'true');
+            console.warn('[SmartRemote] Stall detected. Auto-recovering...');
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                for (var r of regs) { r.unregister(); }
+              });
+            }
+            if ('caches' in window) {
+              caches.keys().then(function (k) {
+                k.forEach(function (n) { caches.delete(n); });
+              });
+            }
+            window.location.reload(true);
+          }
+        }
+      }, 2500);
+    </script>
+    <script type="module" crossorigin src="/assets/index.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index.css">
+  </head>
+  <body class="bg-[#F2F2F7] text-[#1C1C1E] antialiased overflow-x-hidden selection:bg-blue-500/20 selection:text-blue-700">
+    <div id="root">
+      <!-- Apple Clean Light Splash Fallback -->
+      <div class="init-loader" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; height: 100dvh; background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; user-select: none;">
+        <img src="/pwa-192.png" alt="Smart Remote" style="width: 76px; height: 76px; border-radius: 20px; margin-bottom: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);" />
+        <div style="font-size: 20px; font-weight: 700; letter-spacing: -0.4px; color: #1C1C1E;">
+          Smart Remote
+        </div>
+        <div style="font-size: 13px; color: #8E8E93; margin-top: 4px; font-weight: 500;">
+          macOS &amp; iOS Control Hub
+        </div>
+      </div>
+    </div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>
