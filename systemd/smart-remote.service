@@ -1,18 +1,15 @@
 [Unit]
-Description=Smart Remote - pearOS Mobile & Web Remote Controller
-After=network.target network-online.target tailscaled.service
+Description=pearOS Nexus Smart Remote 3.0
+After=network.target network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=aryan
 WorkingDirectory=/home/aryan/.gemini/antigravity/scratch/smart-remote
-EnvironmentFile=/home/aryan/.gemini/antigravity/scratch/smart-remote/.env
-ExecStart=/usr/bin/python3 -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 7070
+Environment="PYTHONPATH=/home/aryan/.gemini/antigravity/scratch/smart-remote"
+ExecStart=/usr/bin/systemd-inhibit --what=handle-lid-switch:sleep:idle --why="pearOS Smart Remote 24/7 background operation" /home/aryan/.gemini/antigravity/scratch/smart-remote/.venv/bin/python3 -m uvicorn backend.app.main:app --host 0.0.0.0 --port 7070
 Restart=always
 RestartSec=3
-StandardOutput=journal
-StandardError=journal
 
 [Install]
 WantedBy=default.target

@@ -1,123 +1,105 @@
-import React, { useState, useEffect } from 'react';
-import { AppProvider, useApp } from './context/AppContext';
-import { OfflineQueueProvider } from './context/OfflineQueueContext';
-import { WebSocketProvider } from './context/WebSocketContext';
-import { VoiceProvider } from './context/VoiceContext';
-import { CallProvider } from './context/CallContext';
-import { VideoCallModal } from './components/call/VideoCallModal';
-import { VoiceAssistantOverlay } from './components/common/VoiceAssistantOverlay';
-import { NotificationCenter } from './components/common/NotificationCenter';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { LoginPage } from './pages/LoginPage';
-import { DeviceSelectPage } from './pages/DeviceSelectPage';
-import { MainWorkspace } from './views/MainWorkspace';
-import { api } from './services/api';
-import { AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { MousePointer, Video, MapPin, Bot, Activity, Folder } from 'lucide-react';
+import { DynamicIsland } from './components/DynamicIsland';
+import { TouchBar } from './components/TouchBar';
+import { TrackpadView } from './components/TrackpadView';
+import { CctvDeckView } from './components/CctvDeckView';
+import { GoogleMapView } from './components/GoogleMapView';
+import { AiNexusView } from './components/AiNexusView';
+import { SystemCockpitView } from './components/SystemCockpitView';
+import { FileDropView } from './components/FileDropView';
 
-const AppContent: React.FC = () => {
-  const { addNotification } = useApp();
-
-  // Navigation flow between the 3 main stages:
-  // 1: 'login' (Page 1)
-  // 2: 'device_select' (Page 2)
-  // 3: 'remote' (Page 3 - MainWorkspace)
-  const [appFlow, setAppFlow] = useState<'login' | 'device_select' | 'remote'>(() => {
-    const hasUser = localStorage.getItem('smart_remote_auth_user');
-    if (!hasUser) return 'login';
-    return 'device_select';
-  });
-
-  const [tamperWarning, setTamperWarning] = useState<string | null>(null);
-
-  // Anti-Tamper & Security Watcher
-  useEffect(() => {
-    if (appFlow !== 'remote') return;
-    let mounted = true;
-    const checkTamper = async () => {
-      try {
-        const res = await api.getTamperStatus();
-        if (mounted && res) {
-          if (res.tampered) {
-            setTamperWarning(res.alert || 'Security Notice: Laptop power disconnected or lid moved!');
-          } else {
-            setTamperWarning(null);
-          }
-        }
-      } catch {}
-    };
-    checkTamper();
-    const interval = setInterval(checkTamper, 12000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [appFlow]);
-
-  // Page 1: Sign in
-  if (appFlow === 'login') {
-    return <LoginPage onLoginSuccess={() => setAppFlow('device_select')} />;
-  }
-
-  // Page 2: Select Node
-  if (appFlow === 'device_select') {
-    return (
-      <DeviceSelectPage
-        onDeviceSelected={() => setAppFlow('remote')}
-        onLogout={() => {
-          localStorage.removeItem('smart_remote_auth_user');
-          localStorage.removeItem('smart_remote_auth_token');
-          setAppFlow('login');
-        }}
-      />
-    );
-  }
-
-  // Page 3: Brand New Apple macOS Sequoia & iOS 18 Light UI
-  return (
-    <div className="relative w-screen h-[100dvh] overflow-hidden bg-[#F2F2F7] select-none font-sans">
-      {/* Tamper Alert Bar */}
-      {tamperWarning && (
-        <div className="absolute top-8 inset-x-0 z-[1600] bg-rose-600 text-white px-4 py-1.5 flex items-center justify-between text-xs shadow-md animate-pulse">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span className="font-semibold">{tamperWarning}</span>
-          </div>
-          <button
-            onClick={() => setTamperWarning(null)}
-            className="text-[10px] bg-rose-800 hover:bg-rose-900 px-2 py-0.5 rounded font-mono"
-          >
-            DISMISS
-          </button>
-        </div>
-      )}
-
-      {/* Main macOS Sequoia Light Workspace */}
-      <MainWorkspace />
-
-      {/* Persistent Background Voice AI Assistant Floating Overlay */}
-      <VoiceAssistantOverlay />
-
-      {/* Persistent Two-Way Video Call Modal */}
-      <VideoCallModal />
-    </div>
-  );
-};
+type Tab = 'trackpad' | 'cctv' | 'maps' | 'ai' | 'system' | 'files';
 
 export const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<Tab>('trackpad');
+
   return (
-    <ErrorBoundary>
-      <AppProvider>
-        <OfflineQueueProvider>
-          <WebSocketProvider>
-            <VoiceProvider>
-              <CallProvider>
-                <AppContent />
-              </CallProvider>
-            </VoiceProvider>
-          </WebSocketProvider>
-        </OfflineQueueProvider>
-      </AppProvider>
-    </ErrorBoundary>
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-gradient-to-b from-[#F2F2F7] via-[#E5E5EA] to-[#D1D1D6] font-sans">
+      {/* Top Floating Dynamic Island */}
+      <DynamicIsland />
+
+      {/* Main App Content Area */}
+      <div className="flex-1 flex flex-col pt-14 pb-20 overflow-hidden">
+        {/* Context-Adaptive OLED Touch Bar */}
+        <TouchBar />
+
+        {/* Viewport Router */}
+        <div className="flex-1 overflow-hidden">
+          {activeTab === 'trackpad' && <TrackpadView />}
+          {activeTab === 'cctv' && <CctvDeckView />}
+          {activeTab === 'maps' && <GoogleMapView />}
+          {activeTab === 'ai' && <AiNexusView />}
+          {activeTab === 'system' && <SystemCockpitView />}
+          {activeTab === 'files' && <FileDropView />}
+        </div>
+      </div>
+
+      {/* Bottom Floating Glass Navigation Dock */}
+      <div className="fixed bottom-3 inset-x-4 z-30">
+        <div className="glass-panel rounded-3xl p-1.5 flex items-center justify-around shadow-xl border border-white/80">
+          <button
+            onClick={() => setActiveTab('trackpad')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeTab === 'trackpad' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <MousePointer size={18} />
+            <span className="text-[10px] font-bold mt-0.5">Remote</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('cctv')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeTab === 'cctv' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Video size={18} />
+            <span className="text-[10px] font-bold mt-0.5">CCTV</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('maps')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeTab === 'maps' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <MapPin size={18} />
+            <span className="text-[10px] font-bold mt-0.5">Map</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ai')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeTab === 'ai' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Bot size={18} />
+            <span className="text-[10px] font-bold mt-0.5">AI Agents</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('system')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeTab === 'system' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Activity size={18} />
+            <span className="text-[10px] font-bold mt-0.5">Cockpit</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('files')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeTab === 'files' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Folder size={18} />
+            <span className="text-[10px] font-bold mt-0.5">Files</span>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

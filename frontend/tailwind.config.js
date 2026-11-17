@@ -4,31 +4,29 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        cyber: {
-          bg: '#030712',
-          void: '#030712',
-          tier1: '#090d16',
-          tier2: '#0d1117',
-          surface: '#090d16',
-          card: '#0d1117',
-          border: 'rgba(0, 240, 255, 0.15)',
-          neon: '#00f0ff',
-          cyan: '#00f0ff',
-          emerald: '#10b981',
-          rose: '#ef4444',
-          breach: '#ef4444',
-          amber: '#f59e0b',
-          purple: '#8b5cf6',
+        apple: {
+          blue: '#007AFF',
+          green: '#34C759',
+          indigo: '#5856D6',
+          orange: '#FF9500',
+          pink: '#FF2D55',
+          purple: '#AF52DE',
+          red: '#FF3B30',
+          teal: '#5AC8FA',
+          yellow: '#FFCC00',
+          gray: '#8E8E93',
+          bg: '#F2F2F7',
+          card: '#FFFFFF',
         }
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-        display: ['Space Grotesk', 'sans-serif'],
-        sans: ['Geist', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'Arial', 'sans-serif'],
+      },
+      backdropBlur: {
+        '3xl': '32px',
       }
     },
   },

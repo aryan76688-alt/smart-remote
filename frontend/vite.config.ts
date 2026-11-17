@@ -9,23 +9,12 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:7070',
-        changeOrigin: true,
-      },
-      '/ws': {
-        target: 'ws://127.0.0.1:7070',
-        ws: true,
+        changeOrigin: true
       }
     }
   },
   build: {
     outDir: 'dist',
-    chunkSizeWarningLimit: 1500,
-    rollupOptions: {
-      output: {
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]'
-      }
-    }
+    emptyOutDir: true
   }
 });

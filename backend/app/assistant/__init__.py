@@ -1,1 +1,0 @@
-from app.assistant.assistant_service import assistant_service
