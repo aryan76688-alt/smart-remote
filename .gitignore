@@ -37,3 +37,6 @@ android-app/local.properties
 # OS and IDE files
 .DS_Store
 Thumbs.db
+
+# CCTV 30-minute recordings
+recordings/

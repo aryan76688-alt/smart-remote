@@ -1,10 +1,11 @@
 import time
-from fastapi import APIRouter, Request, Response, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from ..core.camera import camera_core
+from ..core.recorder import cctv_recorder
 
-router = APIRouter(prefix="/api/cctv", tags=["CCTV"])
+router = APIRouter(prefix="/api/cctv", tags=["CCTV & 30-Min Recording"])
 
 class CCTVToggleRequest(BaseModel):
     active: bool
@@ -16,6 +17,11 @@ class TripwireConfigRequest(BaseModel):
     enabled: bool
     line_y: float = 0.5
 
+class RecordStartRequest(BaseModel):
+    source: str = "laptop"  # "laptop" or "mobile"
+    duration_minutes: int = 30
+    continuous_loop: bool = False
+
 @router.get("/status")
 def get_cctv_status():
     return {
@@ -24,7 +30,8 @@ def get_cctv_status():
         "mobile_cctv_requested": camera_core.mobile_cctv_requested,
         "thermal_mode": camera_core.thermal_mode,
         "tripwire_enabled": camera_core.tripwire_enabled,
-        "tripwire_triggered": camera_core.tripwire_triggered
+        "tripwire_triggered": camera_core.tripwire_triggered,
+        "recorder": cctv_recorder.get_status()
     }
 
 @router.post("/laptop/toggle")
@@ -71,6 +78,58 @@ def configure_tripwire(req: TripwireConfigRequest):
         "line_y": camera_core.tripwire_line_y
     }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# 30-MINUTE CCTV RECORDING ENGINE ENDPOINTS
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.post("/record/start")
+def start_cctv_recording(req: RecordStartRequest):
+    return cctv_recorder.start_recording(
+        source=req.source,
+        duration_minutes=req.duration_minutes,
+        continuous_loop=req.continuous_loop
+    )
+
+@router.post("/record/stop")
+def stop_cctv_recording():
+    return cctv_recorder.stop_recording()
+
+@router.get("/record/status")
+def get_recording_status():
+    return {
+        "success": True,
+        "recorder": cctv_recorder.get_status()
+    }
+
+@router.get("/recordings")
+def list_cctv_recordings():
+    return {
+        "success": True,
+        "recordings": cctv_recorder.list_recordings(),
+        "recorder": cctv_recorder.get_status()
+    }
+
+@router.get("/recordings/play/{filename}")
+def play_cctv_recording(filename: str):
+    path = cctv_recorder.get_recording_path(filename)
+    if not path:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return FileResponse(path, media_type="video/mp4")
+
+@router.get("/recordings/download/{filename}")
+def download_cctv_recording(filename: str):
+    path = cctv_recorder.get_recording_path(filename)
+    if not path:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return FileResponse(path, media_type="video/mp4", filename=path.name)
+
+@router.delete("/recordings/{filename}")
+def delete_cctv_recording(filename: str):
+    ok = cctv_recorder.delete_recording(filename)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Cannot delete active or missing recording")
+    return {"success": True, "deleted": filename}
+
 def _stream_laptop_feed():
     camera_core.start_laptop_cam()
     while True:
@@ -89,7 +148,9 @@ def _stream_mobile_feed():
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
             time.sleep(0.08)
     finally:
-        camera_core.set_mobile_cctv_requested(False)
+        # Only turn off mobile cam if NOT currently recording mobile CCTV for 30 minutes
+        if not (cctv_recorder.recording and cctv_recorder.source == "mobile"):
+            camera_core.set_mobile_cctv_requested(False)
 
 @router.get("/laptop/stream.mjpg")
 def stream_laptop_cctv():

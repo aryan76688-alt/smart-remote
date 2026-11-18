@@ -142,7 +142,7 @@ export const api = {
     return res.json();
   },
 
-  // CCTV
+  // CCTV & 30-Minute Recorder
   async getCctvStatus() {
     const res = await fetch(`${BASE_URL}/api/cctv/status`);
     return res.json();
@@ -184,12 +184,33 @@ export const api = {
     return res.json();
   },
 
-  // Maps & Location
-  async getMapsConfig() {
-    const res = await fetch(`${BASE_URL}/api/maps/config`);
+  async startRecording(source: 'laptop' | 'mobile', duration_minutes: number = 30, continuous_loop: boolean = false) {
+    const res = await fetch(`${BASE_URL}/api/cctv/record/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source, duration_minutes, continuous_loop })
+    });
     return res.json();
   },
 
+  async stopRecording() {
+    const res = await fetch(`${BASE_URL}/api/cctv/record/stop`, { method: 'POST' });
+    return res.json();
+  },
+
+  async listRecordings() {
+    const res = await fetch(`${BASE_URL}/api/cctv/recordings`);
+    return res.json();
+  },
+
+  async deleteRecording(filename: string) {
+    const res = await fetch(`${BASE_URL}/api/cctv/recordings/${encodeURIComponent(filename)}`, {
+      method: 'DELETE'
+    });
+    return res.json();
+  },
+
+  // Maps & Companion Phone
   async getDeviceLocation() {
     const res = await fetch(`${BASE_URL}/api/maps/location`);
     return res.json();
@@ -204,8 +225,17 @@ export const api = {
     return res.json();
   },
 
-  async getBreadcrumbs() {
-    const res = await fetch(`${BASE_URL}/api/maps/breadcrumbs`);
+  async controlPhone(payload: { siren?: boolean; strobe?: boolean; camera?: boolean }) {
+    const res = await fetch(`${BASE_URL}/api/phone/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  },
+
+  async getPhoneStatus() {
+    const res = await fetch(`${BASE_URL}/api/phone/status`);
     return res.json();
   },
 

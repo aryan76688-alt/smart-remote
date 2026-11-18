@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MousePointer, Video, MapPin, Bot, Activity, Folder } from 'lucide-react';
+import { MousePointer, Video, MapPin, Bot, Sliders, Folder } from 'lucide-react';
 import { DynamicIsland } from './components/DynamicIsland';
 import { TouchBar } from './components/TouchBar';
 import { TrackpadView } from './components/TrackpadView';
@@ -9,96 +9,72 @@ import { AiNexusView } from './components/AiNexusView';
 import { SystemCockpitView } from './components/SystemCockpitView';
 import { FileDropView } from './components/FileDropView';
 
-type Tab = 'trackpad' | 'cctv' | 'maps' | 'ai' | 'system' | 'files';
+type Tab = 'cctv' | 'trackpad' | 'maps' | 'ai' | 'system' | 'files';
+
+const DOCK_TABS: { id: Tab; label: string; icon: React.ComponentType<{ size?: number | string; className?: string }> }[] = [
+  { id: 'trackpad', label: 'Remote', icon: MousePointer },
+  { id: 'cctv', label: 'CCTV', icon: Video },
+  { id: 'maps', label: 'Radar', icon: MapPin },
+  { id: 'ai', label: 'Agents', icon: Bot },
+  { id: 'system', label: 'Cockpit', icon: Sliders },
+  { id: 'files', label: 'Vault', icon: Folder },
+];
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('trackpad');
+  const [activeTab, setActiveTab] = useState<Tab>('cctv');
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-gradient-to-b from-[#F2F2F7] via-[#E5E5EA] to-[#D1D1D6] font-sans">
-      {/* Top Floating Dynamic Island */}
+    <div className="relative flex flex-col h-screen w-screen overflow-hidden bg-stitch-bg text-stitch-text font-sans">
+      {/* Stitch Cosmic Aurora Canvas & Floating Ambient Light Mesh */}
+      <div className="aurora-canvas" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-80 bg-stitch-primaryStrong/25 rounded-full blur-[95px] animate-pulse" />
+        <div className="absolute top-[42%] -left-24 w-72 h-72 bg-stitch-tertiaryStrong/20 rounded-full blur-[100px]" />
+        <div className="absolute bottom-16 -right-20 w-80 h-80 bg-stitch-secondaryStrong/15 rounded-full blur-[95px]" />
+      </div>
+
+      {/* Top Stitch Dynamic Island Telemetry Pill */}
       <DynamicIsland />
 
-      {/* Main App Content Area */}
-      <div className="flex-1 flex flex-col pt-14 pb-20 overflow-hidden">
-        {/* Context-Adaptive OLED Touch Bar */}
-        <TouchBar />
+      {/* Transparent OLED Touch Bar */}
+      <TouchBar />
 
-        {/* Viewport Router */}
-        <div className="flex-1 overflow-hidden">
-          {activeTab === 'trackpad' && <TrackpadView />}
-          {activeTab === 'cctv' && <CctvDeckView />}
-          {activeTab === 'maps' && <GoogleMapView />}
-          {activeTab === 'ai' && <AiNexusView />}
-          {activeTab === 'system' && <SystemCockpitView />}
-          {activeTab === 'files' && <FileDropView />}
+      {/* Main Spatial Viewport */}
+      <main className="relative z-10 flex-1 overflow-hidden pb-20 pt-1">
+        {activeTab === 'trackpad' && <TrackpadView />}
+        {activeTab === 'cctv' && <CctvDeckView />}
+        {activeTab === 'maps' && <GoogleMapView />}
+        {activeTab === 'ai' && <AiNexusView />}
+        {activeTab === 'system' && <SystemCockpitView />}
+        {activeTab === 'files' && <FileDropView />}
+      </main>
+
+      {/* Floating Stitch Liquid-Glass Bottom Dock */}
+      <nav aria-label="Primary Navigation" className="fixed bottom-3 inset-x-3 z-40 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto liquid-pill rounded-full p-1.5 flex items-center justify-between gap-1 w-full max-w-md">
+          {DOCK_TABS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={`relative flex-1 min-h-[46px] py-1.5 px-1 rounded-full flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
+                  isActive
+                    ? 'bg-stitch-primaryStrong text-white shadow-[0_0_18px_rgba(62,144,255,0.75)]'
+                    : 'text-stitch-muted hover:text-white'
+                }`}
+              >
+                <Icon size={18} className={id === 'ai' && !isActive ? 'text-stitch-tertiary' : ''} />
+                {id === 'cctv' && !isActive && (
+                  <span className="absolute top-1.5 right-3 w-1.5 h-1.5 rounded-full bg-stitch-secondary shadow-[0_0_6px_#47e266]" />
+                )}
+                <span className="text-[9px] font-semibold tracking-tight">{label}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
-
-      {/* Bottom Floating Glass Navigation Dock */}
-      <div className="fixed bottom-3 inset-x-4 z-30">
-        <div className="glass-panel rounded-3xl p-1.5 flex items-center justify-around shadow-xl border border-white/80">
-          <button
-            onClick={() => setActiveTab('trackpad')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              activeTab === 'trackpad' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <MousePointer size={18} />
-            <span className="text-[10px] font-bold mt-0.5">Remote</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('cctv')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              activeTab === 'cctv' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Video size={18} />
-            <span className="text-[10px] font-bold mt-0.5">CCTV</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('maps')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              activeTab === 'maps' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <MapPin size={18} />
-            <span className="text-[10px] font-bold mt-0.5">Map</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('ai')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              activeTab === 'ai' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Bot size={18} />
-            <span className="text-[10px] font-bold mt-0.5">AI Agents</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('system')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              activeTab === 'system' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Activity size={18} />
-            <span className="text-[10px] font-bold mt-0.5">Cockpit</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('files')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
-              activeTab === 'files' ? 'bg-apple-blue text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Folder size={18} />
-            <span className="text-[10px] font-bold mt-0.5">Files</span>
-          </button>
-        </div>
-      </div>
+      </nav>
     </div>
   );
 };

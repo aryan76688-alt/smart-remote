@@ -34,65 +34,70 @@ export const FileDropView: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full p-4 gap-4">
-      {/* Directory Breadcrumb Navigation */}
-      <div className="flex items-center justify-between glass-panel p-3 rounded-2xl">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <button
-            onClick={() => loadDirectory(parentPath)}
-            disabled={currentPath === '/home/aryan'}
-            className="p-1.5 bg-slate-200/60 rounded-xl text-slate-700 disabled:opacity-30 active:scale-95 transition-all shrink-0"
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <div className="flex items-center gap-1.5 text-xs font-mono text-slate-700 truncate">
-            <HardDrive size={14} className="text-apple-blue shrink-0" />
-            <span className="truncate">{currentPath}</span>
+    <div className="w-full h-full px-3 pb-4 flex flex-col items-center">
+      <div className="w-full max-w-md h-full flex flex-col gap-3">
+        {/* Path Pill Header */}
+        <div className="liquid-glass rounded-2xl p-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => loadDirectory(parentPath)}
+              disabled={currentPath === '/home/aryan'}
+              aria-label="Go up directory"
+              className="w-9 h-9 rounded-xl liquid-btn flex items-center justify-center text-stitch-text disabled:opacity-30 shrink-0"
+            >
+              <ArrowLeft size={15} />
+            </button>
+            <div className="flex items-center gap-1.5 font-mono text-xs text-stitch-text truncate">
+              <HardDrive size={14} className="text-stitch-primary shrink-0" />
+              <span className="truncate">{currentPath}</span>
+            </div>
           </div>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-stitch-primary shrink-0 pr-1">
+            pearDrop
+          </span>
         </div>
 
-        <span className="text-[10px] uppercase font-bold text-slate-400 shrink-0">pearDrop</span>
-      </div>
-
-      {/* File List Container */}
-      <div className="flex-1 glass-panel rounded-3xl p-3 overflow-y-auto flex flex-col gap-1 border border-white/80">
-        {loading ? (
-          <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-            Loading directory...
-          </div>
-        ) : items.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-400 text-xs">
-            Empty directory
-          </div>
-        ) : (
-          items.map((item) => (
-            <div
-              key={item.path}
-              onClick={() => {
-                if (item.is_dir) {
-                  loadDirectory(item.path);
-                } else {
-                  window.open(`${window.location.origin}/api/files/download?path=${encodeURIComponent(item.path)}`, '_blank');
-                }
-              }}
-              className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-white/80 active:scale-99 transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5 overflow-hidden">
-                {item.is_dir ? (
-                  <Folder size={18} className="text-apple-blue shrink-0" />
-                ) : (
-                  <File size={18} className="text-slate-500 shrink-0" />
-                )}
-                <span className="text-xs font-medium text-slate-800 truncate">{item.name}</span>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] text-slate-400 font-mono">{formatSize(item.size_bytes)}</span>
-                {!item.is_dir && <Download size={14} className="text-apple-blue" />}
-              </div>
+        {/* Crystal File List */}
+        <div className="flex-1 liquid-glass rounded-3xl p-2.5 overflow-y-auto flex flex-col gap-1.5">
+          {loading ? (
+            <div className="h-full flex items-center justify-center text-xs text-stitch-outline font-mono">
+              Loading vault...
             </div>
-          ))
-        )}
+          ) : items.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-xs text-stitch-outline font-mono">
+              Directory is empty
+            </div>
+          ) : (
+            items.map((item) => (
+              <button
+                key={item.path}
+                type="button"
+                onClick={() => {
+                  if (item.is_dir) {
+                    loadDirectory(item.path);
+                  } else {
+                    window.open(`${window.location.origin}/api/files/download?path=${encodeURIComponent(item.path)}`, '_blank');
+                  }
+                }}
+                className="liquid-glass-deep rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-white/10 active:scale-[0.99] transition-all text-left"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {item.is_dir ? (
+                    <Folder size={17} className="text-stitch-primary shrink-0" />
+                  ) : (
+                    <File size={17} className="text-stitch-muted shrink-0" />
+                  )}
+                  <span className="text-xs font-medium text-stitch-text truncate">{item.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="font-mono text-[10px] text-stitch-outline">{formatSize(item.size_bytes)}</span>
+                  {!item.is_dir && <Download size={14} className="text-stitch-secondary" />}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

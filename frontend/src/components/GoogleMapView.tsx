@@ -3,11 +3,11 @@ import { MapPin, ShieldCheck, Crosshair, Layers, Volume2, Flashlight } from 'luc
 import { api } from '../services/api';
 import L from 'leaflet';
 
-type MapLayerMode = 'roadmap' | 'hybrid' | 'satellite';
+type MapLayerMode = 'hybrid' | 'roadmap' | 'satellite';
 
 const GOOGLE_TILE_URLS: Record<MapLayerMode, string> = {
-  roadmap: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
   hybrid: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+  roadmap: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
   satellite: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
 };
 
@@ -31,7 +31,6 @@ export const GoogleMapView: React.FC = () => {
     distance_from_home_m: 0.0
   });
 
-  // Initialize Real Google Maps Tile Canvas
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
@@ -40,55 +39,42 @@ export const GoogleMapView: React.FC = () => {
       attributionControl: false
     }).setView([location.latitude, location.longitude], 17);
 
-    const tiles = L.tileLayer(GOOGLE_TILE_URLS[layerMode], {
-      maxZoom: 21,
-      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-    }).addTo(map);
+    const tiles = L.tileLayer(GOOGLE_TILE_URLS[layerMode], { maxZoom: 21 }).addTo(map);
     tileLayerRef.current = tiles;
 
     const customIcon = L.divIcon({
       className: 'custom-gps-pin',
       html: `
         <div style="position: relative; width: 26px; height: 26px;">
-          <div style="position: absolute; inset: -6px; border-radius: 9999px; background: rgba(0, 122, 255, 0.4); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-          <div style="position: relative; width: 22px; height: 22px; border-radius: 9999px; background: #007AFF; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.4);"></div>
+          <div style="position: absolute; inset: -6px; border-radius: 9999px; background: rgba(62, 144, 255, 0.45); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="position: relative; width: 22px; height: 22px; border-radius: 9999px; background: #3e90ff; border: 3px solid #ffffff; box-shadow: 0 0 18px rgba(62,144,255,0.9);"></div>
         </div>
       `,
       iconSize: [26, 26],
       iconAnchor: [13, 13]
     });
 
-    const marker = L.marker([location.latitude, location.longitude], { icon: customIcon }).addTo(map);
-    markerRef.current = marker;
-
-    const circle = L.circle([location.latitude, location.longitude], {
-      color: '#34C759',
-      fillColor: '#34C759',
+    markerRef.current = L.marker([location.latitude, location.longitude], { icon: customIcon }).addTo(map);
+    circleRef.current = L.circle([location.latitude, location.longitude], {
+      color: '#47e266',
+      fillColor: '#47e266',
       fillOpacity: 0.14,
       radius: 50
     }).addTo(map);
-    circleRef.current = circle;
 
     mapInstanceRef.current = map;
-
     return () => {
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
 
-  // Switch Google Map layer dynamically (Roadmap / Hybrid / Satellite)
   useEffect(() => {
     if (!mapInstanceRef.current) return;
-    if (tileLayerRef.current) {
-      mapInstanceRef.current.removeLayer(tileLayerRef.current);
-    }
-    tileLayerRef.current = L.tileLayer(GOOGLE_TILE_URLS[layerMode], {
-      maxZoom: 21
-    }).addTo(mapInstanceRef.current);
+    if (tileLayerRef.current) mapInstanceRef.current.removeLayer(tileLayerRef.current);
+    tileLayerRef.current = L.tileLayer(GOOGLE_TILE_URLS[layerMode], { maxZoom: 21 }).addTo(mapInstanceRef.current);
   }, [layerMode]);
 
-  // Poll backend for live phone companion GPS updates
   useEffect(() => {
     const fetchLiveLocation = async () => {
       try {
@@ -108,21 +94,19 @@ export const GoogleMapView: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Also stream browser geolocation if available
   useEffect(() => {
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       async (pos) => {
-        const coords = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          altitude: pos.coords.altitude || 0,
-          speed: pos.coords.speed || 0,
-          heading: pos.coords.heading || 0
-        };
         try {
-          await api.updateLocation(coords);
+          await api.updateLocation({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            altitude: pos.coords.altitude || 0,
+            speed: pos.coords.speed || 0,
+            heading: pos.coords.heading || 0
+          });
         } catch (_e) {}
       },
       () => {},
@@ -132,9 +116,7 @@ export const GoogleMapView: React.FC = () => {
   }, []);
 
   const recenterMap = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([location.latitude, location.longitude], 18);
-    }
+    mapInstanceRef.current?.flyTo([location.latitude, location.longitude], 18);
   };
 
   const cycleLayer = () => {
@@ -144,122 +126,128 @@ export const GoogleMapView: React.FC = () => {
   const togglePhoneSiren = async () => {
     const next = !sirenActive;
     setSirenActive(next);
-    await fetch(`${window.location.origin}/api/phone/control`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ siren: next })
-    });
+    await api.controlPhone({ siren: next });
   };
 
   const togglePhoneTorch = async () => {
     const next = !torchActive;
     setTorchActive(next);
-    await fetch(`${window.location.origin}/api/phone/control`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ strobe: next })
-    });
+    await api.controlPhone({ strobe: next });
   };
 
   return (
-    <div className="flex flex-col h-full p-4 gap-3">
-      {/* Top Google Maps Telemetry Header */}
-      <div className="flex items-center justify-between glass-panel p-3 rounded-2xl">
-        <div className="flex items-center gap-2">
-          <MapPin size={18} className="text-apple-blue" />
-          <div>
-            <h3 className="text-xs font-bold text-slate-800">Google Maps Live GPS ({layerMode.toUpperCase()})</h3>
-            <span className="text-[10px] text-slate-500 font-mono">
-              {Number(location.latitude).toFixed(5)}, {Number(location.longitude).toFixed(5)}
+    <div className="w-full h-full px-3 pb-4 flex flex-col items-center">
+      <div className="w-full max-w-md h-full flex flex-col gap-3">
+        {/* Transparent Glass Map Header */}
+        <div className="liquid-glass rounded-2xl p-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-9 h-9 rounded-xl liquid-glass-deep flex items-center justify-center text-stitch-primary shrink-0">
+              <MapPin size={17} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-display text-xs font-bold text-stitch-text truncate">
+                Google Maps • {layerMode.toUpperCase()}
+              </h3>
+              <span className="font-mono text-[10px] text-stitch-muted block truncate">
+                {Number(location.latitude).toFixed(5)}, {Number(location.longitude).toFixed(5)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={cycleLayer}
+              aria-label="Switch Google Maps layer"
+              className="w-9 h-9 rounded-xl liquid-btn flex items-center justify-center text-stitch-text"
+            >
+              <Layers size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={togglePhoneSiren}
+              aria-label="Toggle 110dB phone siren"
+              className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
+                sirenActive
+                  ? 'bg-stitch-errorStrong/80 border-stitch-error text-white animate-pulse shadow-[0_0_18px_rgba(255,59,48,0.6)]'
+                  : 'liquid-btn text-stitch-error'
+              }`}
+            >
+              <Volume2 size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={togglePhoneTorch}
+              aria-label="Toggle phone torch"
+              className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
+                torchActive
+                  ? 'bg-amber-500/70 border-amber-300 text-white shadow-[0_0_16px_rgba(245,158,11,0.5)]'
+                  : 'liquid-btn text-amber-300'
+              }`}
+            >
+              <Flashlight size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={recenterMap}
+              aria-label="Recenter map"
+              className="w-9 h-9 rounded-xl bg-stitch-primaryStrong/80 text-white flex items-center justify-center shadow-[0_0_14px_rgba(62,144,255,0.5)] active:scale-95"
+            >
+              <Crosshair size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Crystal Framed Google Maps Viewport */}
+        <div className="flex-1 liquid-glass rounded-3xl overflow-hidden relative p-1">
+          <div ref={mapContainerRef} className="w-full h-full rounded-[20px] z-0 overflow-hidden" />
+
+          {/* Top-Left Geofence Pill */}
+          <div className="absolute top-3.5 left-3.5 z-10">
+            <span className={`text-[10px] font-mono px-3 py-1.5 rounded-full font-bold flex items-center gap-1.5 backdrop-blur-xl border shadow-lg ${
+              location.geofence_status === 'INSIDE_HOME_ZONE'
+                ? 'bg-black/60 text-stitch-secondary border-stitch-secondary/40'
+                : 'bg-black/60 text-stitch-error border-stitch-error/40'
+            }`}>
+              <ShieldCheck size={12} />
+              <span>{location.geofence_status === 'INSIDE_HOME_ZONE' ? 'HOME ZONE SAFE' : 'OUTSIDE ZONE'}</span>
             </span>
           </div>
-        </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={cycleLayer}
-            className="p-2 bg-slate-200/70 rounded-xl text-slate-700 active:scale-95 transition-all"
-            title="Switch Google Maps Layer"
-          >
-            <Layers size={14} />
-          </button>
-          <button
-            onClick={togglePhoneSiren}
-            className={`p-2 rounded-xl transition-all active:scale-95 ${
-              sirenActive ? 'bg-apple-red text-white animate-pulse shadow-md' : 'bg-slate-200/70 text-slate-700'
-            }`}
-            title="110dB Emergency Phone Siren"
-          >
-            <Volume2 size={14} />
-          </button>
-          <button
-            onClick={togglePhoneTorch}
-            className={`p-2 rounded-xl transition-all active:scale-95 ${
-              torchActive ? 'bg-apple-orange text-white shadow-md' : 'bg-slate-200/70 text-slate-700'
-            }`}
-            title="Remote Phone Flashlight"
-          >
-            <Flashlight size={14} />
-          </button>
-          <button
-            onClick={recenterMap}
-            className="p-2 bg-apple-blue text-white rounded-xl active:scale-95 transition-all shadow-sm"
-            title="Recenter on Device"
-          >
-            <Crosshair size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Google Maps Canvas */}
-      <div className="flex-1 glass-panel rounded-3xl overflow-hidden relative shadow-md border border-white/80">
-        <div ref={mapContainerRef} className="w-full h-full z-0"></div>
-
-        {/* Geofence Status Pill */}
-        <div className="absolute top-3 left-3 z-10">
-          <span className={`text-[10px] px-3 py-1.5 rounded-full font-bold flex items-center gap-1.5 backdrop-blur-md shadow-md ${
-            location.geofence_status === 'INSIDE_HOME_ZONE'
-              ? 'bg-black/65 text-apple-green border border-apple-green/40'
-              : 'bg-black/65 text-apple-red border border-apple-red/40'
-          }`}>
-            <ShieldCheck size={12} />
-            <span>{location.geofence_status === 'INSIDE_HOME_ZONE' ? 'Home Perimeter Safe' : 'Outside Geofence'}</span>
-          </span>
-        </div>
-
-        {/* Floating Telemetry Badge */}
-        <div className="absolute bottom-3 left-3 right-3 z-10 glass-dark text-white p-3.5 rounded-2xl flex items-center justify-between shadow-xl border border-white/10">
-          <div className="flex items-center gap-4">
-            <div>
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">Distance</span>
-              <span className="block text-sm font-bold font-mono text-apple-blue">
-                {location.distance_from_home_m || 0} m
-              </span>
+          {/* Bottom Floating Liquid Glass HUD */}
+          <div className="absolute bottom-3.5 left-3.5 right-3.5 z-10 liquid-pill rounded-2xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-3.5">
+              <div>
+                <span className="font-mono text-[9px] text-stitch-muted uppercase block">Distance</span>
+                <span className="font-mono text-xs font-bold text-stitch-primary">
+                  {location.distance_from_home_m || 0} m
+                </span>
+              </div>
+              <div className="h-6 w-[1px] bg-white/15" />
+              <div>
+                <span className="font-mono text-[9px] text-stitch-muted uppercase block">Speed</span>
+                <span className="font-mono text-xs font-bold text-stitch-secondary">
+                  {((location.speed_mps || 0) * 3.6).toFixed(1)} km/h
+                </span>
+              </div>
+              <div className="h-6 w-[1px] bg-white/15" />
+              <div>
+                <span className="font-mono text-[9px] text-stitch-muted uppercase block">Acc</span>
+                <span className="font-mono text-xs font-bold text-stitch-tertiary">
+                  ±{Math.round(location.accuracy_m || 10)}m
+                </span>
+              </div>
             </div>
-            <div className="h-6 w-[1px] bg-white/20"></div>
-            <div>
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">Speed</span>
-              <span className="block text-sm font-bold font-mono text-apple-green">
-                {((location.speed_mps || 0) * 3.6).toFixed(1)} km/h
-              </span>
-            </div>
-            <div className="h-6 w-[1px] bg-white/20"></div>
-            <div>
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">Accuracy</span>
-              <span className="block text-sm font-bold font-mono text-apple-purple">
-                ±{Math.round(location.accuracy_m || 10)} m
-              </span>
-            </div>
+
+            <a
+              href={`https://www.google.com/maps?q=${location.latitude},${location.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-xl bg-stitch-primaryStrong/85 text-white text-[11px] font-semibold shadow-[0_0_15px_rgba(62,144,255,0.45)]"
+            >
+              Open Maps
+            </a>
           </div>
-
-          <a
-            href={`https://www.google.com/maps?q=${location.latitude},${location.longitude}`}
-            target="_blank"
-            rel="noreferrer"
-            className="px-3 py-1.5 bg-apple-blue rounded-xl text-[11px] font-bold text-white shadow-sm active:scale-95"
-          >
-            Open Maps
-          </a>
         </div>
       </div>
     </div>

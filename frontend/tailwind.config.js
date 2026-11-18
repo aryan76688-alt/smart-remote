@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -7,26 +8,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        apple: {
-          blue: '#007AFF',
-          green: '#34C759',
-          indigo: '#5856D6',
-          orange: '#FF9500',
-          pink: '#FF2D55',
-          purple: '#AF52DE',
-          red: '#FF3B30',
-          teal: '#5AC8FA',
-          yellow: '#FFCC00',
-          gray: '#8E8E93',
-          bg: '#F2F2F7',
-          card: '#FFFFFF',
+        stitch: {
+          bg: '#0b0e18',
+          surface: '#11131d',
+          container: '#1d1f2a',
+          high: '#272935',
+          highest: '#323440',
+          primary: '#aac7ff',
+          primaryStrong: '#3e90ff',
+          secondary: '#47e266',
+          secondaryStrong: '#09bf49',
+          tertiary: '#e9b3ff',
+          tertiaryStrong: '#c863fb',
+          error: '#ffb4ab',
+          errorStrong: '#ff3b30',
+          errorContainer: '#93000a',
+          text: '#e1e1f1',
+          muted: '#c0c6d6',
+          outline: '#8b91a0',
         }
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'sans-serif'],
+        display: ['Plus Jakarta Sans', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       backdropBlur: {
-        '3xl': '32px',
+        '3xl': '36px',
       }
     },
   },
