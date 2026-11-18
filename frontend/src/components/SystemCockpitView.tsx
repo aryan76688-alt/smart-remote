@@ -45,7 +45,7 @@ export const SystemCockpitView: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full px-4 pb-8 overflow-y-auto">
+    <div className="w-full h-full px-4 pb-24 pt-1 overflow-y-auto">
       <div className="max-w-[980px] mx-auto flex flex-col gap-4">
         {/* 3 Minimalist Hardware Cards */}
         <div className="grid grid-cols-3 gap-3">

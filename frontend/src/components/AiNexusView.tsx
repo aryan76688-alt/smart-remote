@@ -21,7 +21,7 @@ export const AiNexusView: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full px-4 pb-8 overflow-y-auto">
+    <div className="w-full h-full px-4 pb-24 pt-1 overflow-y-auto">
       <div className="max-w-[980px] mx-auto flex flex-col gap-4">
         {/* Configurator Option Chips */}
         <div className="flex flex-wrap items-center gap-2">
@@ -54,7 +54,7 @@ export const AiNexusView: React.FC = () => {
                 value={terminalHistory}
                 onChange={(e) => setTerminalHistory(e.target.value)}
                 rows={4}
-                className="bg-apple-parchment border border-apple-hairline rounded-apple-lg p-4 type-caption font-mono text-apple-ink"
+                className="apple-glass-well rounded-apple-lg p-4 type-caption font-mono text-apple-ink"
               />
               <div>
                 <button
@@ -68,7 +68,7 @@ export const AiNexusView: React.FC = () => {
                 </button>
               </div>
               {terminalResult && (
-                <div className="bg-apple-parchment border border-apple-hairline rounded-apple-lg p-4 flex flex-col gap-3">
+                <div className="apple-glass-well rounded-apple-lg p-4 flex flex-col gap-3">
                   <code className="type-caption font-mono font-semibold text-apple-ink">{terminalResult.predicted_command}</code>
                   <p className="type-caption text-apple-ink80">{terminalResult.reasoning}</p>
                   <div>
@@ -107,7 +107,7 @@ export const AiNexusView: React.FC = () => {
                 </button>
               </div>
               {visionResult && (
-                <div className="bg-apple-parchment border border-apple-hairline rounded-apple-lg p-4 flex flex-col gap-2">
+                <div className="apple-glass-well rounded-apple-lg p-4 flex flex-col gap-2">
                   <p className="type-body text-apple-ink">{visionResult.explanation}</p>
                   <span className="type-fine font-mono text-apple-ink48">
                     Confidence {(visionResult.confidence * 100).toFixed(0)}%
@@ -154,7 +154,7 @@ export const AiNexusView: React.FC = () => {
                 </button>
               </div>
               {replResult && (
-                <div className="bg-apple-parchment border border-apple-hairline rounded-apple-lg p-4 font-mono type-caption overflow-x-auto">
+                <div className="apple-glass-well rounded-apple-lg p-4 font-mono type-caption overflow-x-auto">
                   <span className="type-micro text-apple-ink48 block mb-1">STDOUT · {replResult.execution_ms}ms</span>
                   <pre className="text-apple-ink whitespace-pre-wrap">{replResult.output}</pre>
                 </div>
@@ -169,7 +169,7 @@ export const AiNexusView: React.FC = () => {
                 value={meetingText}
                 onChange={(e) => setMeetingText(e.target.value)}
                 rows={3}
-                className="bg-apple-parchment border border-apple-hairline rounded-apple-lg p-4 type-caption text-apple-ink"
+                className="apple-glass-well rounded-apple-lg p-4 type-caption text-apple-ink"
               />
               <div>
                 <button
@@ -183,7 +183,7 @@ export const AiNexusView: React.FC = () => {
                 </button>
               </div>
               {meetingResult && (
-                <div className="bg-apple-parchment border border-apple-hairline rounded-apple-lg p-4 flex flex-col gap-2">
+                <div className="apple-glass-well rounded-apple-lg p-4 flex flex-col gap-2">
                   <h4 className="type-body-strong text-apple-ink">{meetingResult.summary}</h4>
                   {meetingResult.action_items.map((item: string, i: number) => (
                     <p key={i} className="type-caption text-apple-ink80">• {item}</p>

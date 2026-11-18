@@ -126,7 +126,7 @@ export const CctvDeckView: React.FC = () => {
   const totalMb = recordings.reduce((acc, r) => acc + (r.size_mb || 0), 0).toFixed(1);
 
   return (
-    <div className="w-full h-full overflow-y-auto px-4 pb-8">
+    <div className="w-full h-full overflow-y-auto px-4 pb-24 pt-1">
       <div className="max-w-[980px] mx-auto flex flex-col gap-5">
 
         {/* Section 1: Photography-First Live CCTV Stage (Dark Tile #272729 per design.md) */}
@@ -317,7 +317,7 @@ export const CctvDeckView: React.FC = () => {
               {recordings.map((clip) => (
                 <div key={clip.filename} className="py-3 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-apple-sm bg-apple-parchment border border-apple-hairline flex items-center justify-center text-apple-primary shrink-0">
+                    <div className="w-10 h-10 rounded-apple-sm apple-glass-well flex items-center justify-center text-apple-primary shrink-0">
                       {clip.source === 'mobile' ? <Smartphone size={17} /> : <Laptop size={17} />}
                     </div>
                     <div className="min-w-0">

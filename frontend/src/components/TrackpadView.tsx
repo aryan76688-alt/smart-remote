@@ -46,7 +46,7 @@ export const TrackpadView: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full px-4 pb-4 flex flex-col">
+    <div className="w-full h-full px-4 pb-24 pt-1 flex flex-col">
       <div className="max-w-[980px] w-full mx-auto h-full flex flex-col gap-3">
         {/* Control Row */}
         <div className="apple-glass-card p-3 flex flex-wrap items-center justify-between gap-2">
@@ -123,11 +123,11 @@ export const TrackpadView: React.FC = () => {
           className="flex-1 apple-glass-card relative flex flex-col items-center justify-center cursor-crosshair overflow-hidden"
         >
           <div className="pointer-events-none flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full bg-apple-parchment border border-apple-hairline flex items-center justify-center text-apple-primary">
+            <div className="w-12 h-12 rounded-full apple-glass-well flex items-center justify-center text-apple-primary">
               <MousePointer size={20} />
             </div>
             <p className="type-body-strong text-apple-ink">Trackpad</p>
-            <p className="type-fine text-apple-ink48">Drag to move · Tap to click</p>
+            <p className="type-fine text-apple-ink80">Drag to move · Tap to click</p>
           </div>
 
           {/* Scroll Rail */}
@@ -136,7 +136,7 @@ export const TrackpadView: React.FC = () => {
               e.stopPropagation();
               api.scrollMouse(e.touches[0].clientY > 260 ? 5 : -5);
             }}
-            className="absolute right-3 top-5 bottom-5 w-8 bg-apple-parchment border border-apple-hairline rounded-full flex flex-col items-center justify-between py-3 text-apple-ink48"
+            className="absolute right-3 top-5 bottom-5 w-8 apple-glass-well rounded-full flex flex-col items-center justify-between py-3 text-apple-ink80"
           >
             <ArrowUp size={12} />
             <span className="type-micro font-mono rotate-90 text-apple-ink80">SCROLL</span>

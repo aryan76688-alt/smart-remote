@@ -45,16 +45,16 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
     };
   }, []);
 
-  // Landscape StandBy Tile (Pure Parchment + SF Pro Display)
+  // Landscape StandBy Tile (Translucent Liquid Glass + SF Pro Display)
   if (isLandscape) {
     return (
-      <div className="fixed inset-0 z-50 bg-apple-parchment text-apple-ink flex items-center justify-around p-10 select-none">
+      <div className="fixed inset-0 z-50 bg-white/30 backdrop-blur-3xl text-apple-ink flex items-center justify-around p-10 select-none">
         <div className="flex flex-col items-start">
           <span className="font-display font-semibold text-[72px] leading-none tracking-[-0.03em] text-apple-ink font-mono">
             {currentTime}
           </span>
-          <span className="type-caption text-apple-ink48 mt-3">
-            pearOS StandBy
+          <span className="type-caption text-apple-ink80 mt-3">
+            pearOS Liquid Glass StandBy
           </span>
         </div>
         <div className="apple-glass-card p-6 w-80 flex flex-col gap-4">
@@ -62,14 +62,14 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
             <span className="type-caption text-apple-ink80">CPU Load</span>
             <span className="type-body-strong font-mono text-apple-ink">{status.cpu_percent}%</span>
           </div>
-          <div className="w-full bg-apple-divider h-1.5 rounded-full overflow-hidden">
+          <div className="w-full bg-white/40 h-1.5 rounded-full overflow-hidden">
             <div className="bg-apple-primary h-full transition-all" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
           </div>
           <div className="flex justify-between items-center mt-1">
             <span className="type-caption text-apple-ink80">Memory</span>
             <span className="type-body-strong font-mono text-apple-ink">{status.memory_percent}%</span>
           </div>
-          <div className="w-full bg-apple-divider h-1.5 rounded-full overflow-hidden">
+          <div className="w-full bg-white/40 h-1.5 rounded-full overflow-hidden">
             <div className="bg-apple-ink h-full transition-all" style={{ width: `${Math.min(100, status.memory_percent)}%` }} />
           </div>
         </div>
@@ -125,17 +125,17 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-apple-parchment rounded-apple-lg p-4">
-                <span className="type-fine text-apple-ink48 block">CPU Utilization</span>
+              <div className="apple-glass-well rounded-apple-lg p-4">
+                <span className="type-fine text-apple-ink80 block">CPU Utilization</span>
                 <span className="type-display-lg font-mono text-apple-ink">{status.cpu_percent}%</span>
-                <div className="w-full bg-apple-hairline h-1 rounded-full mt-2 overflow-hidden">
+                <div className="w-full bg-white/50 h-1.5 rounded-full mt-2 overflow-hidden">
                   <div className="bg-apple-primary h-full" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
                 </div>
               </div>
-              <div className="bg-apple-parchment rounded-apple-lg p-4">
-                <span className="type-fine text-apple-ink48 block">Memory Used</span>
+              <div className="apple-glass-well rounded-apple-lg p-4">
+                <span className="type-fine text-apple-ink80 block">Memory Used</span>
                 <span className="type-display-lg font-mono text-apple-ink">{status.memory_percent}%</span>
-                <div className="w-full bg-apple-hairline h-1 rounded-full mt-2 overflow-hidden">
+                <div className="w-full bg-white/50 h-1.5 rounded-full mt-2 overflow-hidden">
                   <div className="bg-apple-ink h-full" style={{ width: `${Math.min(100, status.memory_percent)}%` }} />
                 </div>
               </div>

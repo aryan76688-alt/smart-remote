@@ -130,7 +130,7 @@ export const GoogleMapView: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full px-4 pb-4 flex flex-col">
+    <div className="w-full h-full px-4 pb-24 pt-1 flex flex-col">
       <div className="max-w-[980px] w-full mx-auto h-full flex flex-col gap-3">
         {/* Header Bar */}
         <div className="apple-glass-card p-3 flex items-center justify-between gap-2">
