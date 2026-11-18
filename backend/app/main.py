@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 
 from .core.config import settings
 from .core.tunnel import tunnel_manager
+from .core.recorder import cctv_recorder
 from .api.system import router as system_router
 from .api.remote import router as remote_router
 from .api.cctv import router as cctv_router
@@ -18,20 +19,22 @@ from .api.companion import router as companion_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Launch persistent Cloudflare Tunnel & Worker Edge Hub sync on boot
+    # 1. Launch persistent Cloudflare Tunnel & Worker Edge Hub sync on boot
     tunnel_manager.start()
+    # 2. Auto-start 24/7 Always-On 30-Minute Rolling CCTV Recording on boot
+    cctv_recorder.start_recording(source="laptop", duration_minutes=30, continuous_loop=True)
     yield
-    # Gracefully stop tunnel on shutdown
+    # Gracefully flush and save active MP4 clip and stop tunnel on shutdown
+    cctv_recorder.stop_recording(disable_always_on=False)
     tunnel_manager.stop()
 
 app = FastAPI(
     title="pearOS Nexus Smart Remote",
-    description="Next-Generation pearOS Remote Command Deck & Companion Service",
-    version="3.0.0",
+    description="Next-Generation pearOS Remote Command Deck & 24/7 Always-On CCTV Service",
+    version="4.1.0",
     lifespan=lifespan
 )
 
-# Enable CORS for local & Cloudflare tunnel access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,7 +43,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Modular Routers
 app.include_router(system_router)
 app.include_router(remote_router)
 app.include_router(cctv_router)
@@ -49,12 +51,10 @@ app.include_router(ai_router)
 app.include_router(files_router)
 app.include_router(companion_router)
 
-# Mount Static UI
 static_dir = Path(__file__).resolve().parent / "static"
 if not static_dir.exists():
     static_dir.mkdir(parents=True, exist_ok=True)
 
-# Static assets (js, css, icons)
 if (static_dir / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 
@@ -62,11 +62,11 @@ if (static_dir / "assets").exists():
 def health_check():
     return {
         "status": "healthy",
-        "system": "pearOS Nexus 3.0",
-        "tunnel": tunnel_manager.get_status()
+        "system": "pearOS Nexus 4.1",
+        "tunnel": tunnel_manager.get_status(),
+        "recorder": cctv_recorder.get_status()
     }
 
-# Fallback route for SPA
 @app.get("/{full_path:path}")
 def serve_spa(full_path: str):
     file_path = static_dir / full_path
@@ -75,4 +75,4 @@ def serve_spa(full_path: str):
     index_path = static_dir / "index.html"
     if index_path.exists():
         return FileResponse(index_path)
-    return {"message": "pearOS Nexus 3.0 API Running. Build frontend to view UI."}
+    return {"message": "pearOS Nexus 4.1 API Running. Build frontend to view UI."}

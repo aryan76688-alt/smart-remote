@@ -5,6 +5,7 @@ import psutil
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from ..core.recorder import cctv_recorder
 
 router = APIRouter(prefix="/api/system", tags=["System"])
 
@@ -49,6 +50,7 @@ def get_dynamic_island_status():
             "playing": True,
             "progress_pct": 55
         },
+        "recorder": cctv_recorder.get_status(),
         "alert": None
     }
 

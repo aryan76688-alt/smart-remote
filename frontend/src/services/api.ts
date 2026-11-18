@@ -184,11 +184,20 @@ export const api = {
     return res.json();
   },
 
-  async startRecording(source: 'laptop' | 'mobile', duration_minutes: number = 30, continuous_loop: boolean = false) {
+  async startRecording(source: 'laptop' | 'mobile', duration_minutes: number = 30, continuous_loop: boolean = true) {
     const res = await fetch(`${BASE_URL}/api/cctv/record/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source, duration_minutes, continuous_loop })
+    });
+    return res.json();
+  },
+
+  async setAlwaysOnRecording(enabled: boolean, source: 'laptop' | 'mobile' = 'laptop') {
+    const res = await fetch(`${BASE_URL}/api/cctv/record/always-on`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled, source })
     });
     return res.json();
   },

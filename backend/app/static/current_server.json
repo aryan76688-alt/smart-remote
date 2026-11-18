@@ -1,0 +1,8 @@
+{
+  "local": "http://127.0.0.1:7070",
+  "tailscale": "http://100.69.194.11:7070",
+  "cloudflare_url": "https://vip-leadership-tigers-electricity.trycloudflare.com",
+  "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
+  "tunnel_status": "active",
+  "updated_at": "2026-11-18T14:21:59Z"
+}

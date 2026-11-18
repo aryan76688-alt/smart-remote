@@ -6,6 +6,7 @@ import {
 import { api } from '../services/api';
 
 interface RecorderState {
+  always_on: boolean;
   recording: boolean;
   source: 'laptop' | 'mobile';
   filename: string | null;
@@ -43,7 +44,8 @@ export const CctvDeckView: React.FC = () => {
   const [busy, setBusy] = useState(false);
 
   const [recorder, setRecorder] = useState<RecorderState>({
-    recording: false,
+    always_on: true,
+    recording: true,
     source: 'laptop',
     filename: null,
     elapsed_seconds: 0,
@@ -51,7 +53,7 @@ export const CctvDeckView: React.FC = () => {
     remaining_seconds: 1800,
     progress_percent: 0,
     frames_written: 0,
-    continuous_loop: false
+    continuous_loop: true
   });
   const [recordings, setRecordings] = useState<RecordingClip[]>([]);
 
@@ -100,10 +102,10 @@ export const CctvDeckView: React.FC = () => {
   const handleRecordToggle = async () => {
     setBusy(true);
     try {
-      if (recorder.recording) {
-        await api.stopRecording();
+      if (recorder.recording && recorder.source === activeFeed) {
+        await api.setAlwaysOnRecording(false, activeFeed);
       } else {
-        await api.startRecording(activeFeed, 30, continuousLoop);
+        await api.setAlwaysOnRecording(true, activeFeed);
       }
       await refreshRecordings();
     } finally {
@@ -236,14 +238,20 @@ export const CctvDeckView: React.FC = () => {
           </div>
         </section>
 
-        {/* Section 2: 30-Minute CCTV Recording Studio (Store Utility Card 18px) */}
+        {/* Section 2: 24/7 Always-On 30-Minute CCTV Recording Studio */}
         <section className="apple-glass-card p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex flex-col gap-2 text-center sm:text-left">
-            <h3 className="type-tagline text-apple-ink">30-Minute Recorder</h3>
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <h3 className="type-tagline text-apple-ink">Always-On 30-Min Recorder</h3>
+              <span className="apple-glass-floating rounded-full px-2.5 py-0.5 type-micro font-mono font-semibold text-apple-ink flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${recorder.recording ? 'bg-apple-rec animate-ping' : 'bg-apple-ink48'}`} />
+                {recorder.recording ? '24/7 ON' : 'OFF'}
+              </span>
+            </div>
             <p className="type-body text-apple-ink80">
               {recorder.recording
-                ? `Recording ${recorder.source === 'mobile' ? 'Mobile CCTV' : 'Laptop Cam'} · ${recorder.frames_written} frames`
-                : 'Capture up to 30 minutes of H.264 MP4 footage directly in the background.'}
+                ? `Always recording ${recorder.source === 'mobile' ? 'Mobile CCTV' : 'Laptop Cam'} · ${recorder.frames_written} frames · auto-loops every 30 min.`
+                : 'Always-On 24/7 recording is paused. Tap below to resume continuous 30-min MP4 archiving.'}
             </p>
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
               <button
@@ -252,21 +260,30 @@ export const CctvDeckView: React.FC = () => {
                 onClick={handleRecordToggle}
                 className="apple-btn-primary px-6 py-3 type-caption flex items-center gap-2 min-h-[44px]"
               >
-                {recorder.recording ? <Square size={14} className="fill-white" /> : <Disc size={15} />}
-                <span>{recorder.recording ? 'Stop & Save Clip' : 'Start 30-Min Recording'}</span>
+                {recorder.recording && recorder.source === activeFeed ? (
+                  <>
+                    <Square size={14} className="fill-white" />
+                    <span>Pause Always-On & Save</span>
+                  </>
+                ) : (
+                  <>
+                    <Disc size={15} />
+                    <span>{recorder.recording ? `Switch 24/7 Rec to ${activeFeed === 'mobile' ? 'Mobile' : 'Laptop'}` : 'Enable Always-On Recording'}</span>
+                  </>
+                )}
               </button>
 
               <button
                 type="button"
                 onClick={() => setContinuousLoop(!continuousLoop)}
                 className={`px-4 py-2.5 type-caption flex items-center gap-1.5 min-h-[44px] ${
-                  continuousLoop || recorder.continuous_loop
+                  recorder.continuous_loop || continuousLoop
                     ? 'apple-option-chip-selected font-semibold'
                     : 'apple-option-chip'
                 }`}
               >
                 <Repeat size={14} className="text-apple-primary" />
-                <span>Auto-Loop 30m</span>
+                <span>24/7 Auto-Loop</span>
               </button>
             </div>
           </div>

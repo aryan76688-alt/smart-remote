@@ -6,18 +6,33 @@ interface DynamicIslandProps {
   activeTabLabel: string;
 }
 
+type GlassMode = 'crystal' | 'balanced' | 'frosted';
+
+const formatClock = (totalSeconds: number) => {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
 export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) => {
   const [expanded, setExpanded] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [glassMode, setGlassMode] = useState<GlassMode>('crystal');
   const [status, setStatus] = useState<any>({
     cpu_percent: 14.0,
     memory_percent: 42.0,
     battery_percent: 100,
-    power_plugged: true
+    power_plugged: true,
+    recorder: { recording: true, always_on: true, elapsed_seconds: 0, source: 'laptop' }
   });
   const [currentTime, setCurrentTime] = useState(
     new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   );
+
+  // Apply crystal-clear transparent glass mode on root
+  useEffect(() => {
+    document.documentElement.setAttribute('data-glass-mode', glassMode);
+  }, [glassMode]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -27,7 +42,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
       } catch (_e) {}
     };
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
+    const interval = setInterval(fetchStatus, 2500);
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }, 1000);
@@ -45,16 +60,15 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
     };
   }, []);
 
-  // Landscape StandBy Tile (Translucent Liquid Glass + SF Pro Display)
   if (isLandscape) {
     return (
-      <div className="fixed inset-0 z-50 bg-white/30 backdrop-blur-3xl text-apple-ink flex items-center justify-around p-10 select-none">
+      <div className="fixed inset-0 z-50 bg-white/15 backdrop-blur-2xl text-apple-ink flex items-center justify-around p-10 select-none">
         <div className="flex flex-col items-start">
           <span className="font-display font-semibold text-[72px] leading-none tracking-[-0.03em] text-apple-ink font-mono">
             {currentTime}
           </span>
           <span className="type-caption text-apple-ink80 mt-3">
-            pearOS Liquid Glass StandBy
+            pearOS Crystal Glass StandBy
           </span>
         </div>
         <div className="apple-glass-card p-6 w-80 flex flex-col gap-4">
@@ -77,21 +91,29 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
     );
   }
 
+  const rec = status.recorder;
+
   return (
     <header className="w-full apple-glass-nav relative z-40 shrink-0">
-      <div className="max-w-[980px] mx-auto h-[52px] px-4 flex items-center justify-between gap-3">
-        {/* Left: Category Tagline (21px / 600 per design.md sub-nav-frosted) */}
-        <div className="flex items-baseline gap-2 min-w-0">
+      <div className="max-w-[980px] mx-auto h-[52px] px-4 flex items-center justify-between gap-2">
+        {/* Left: Category Tagline + Live 24/7 REC Pill */}
+        <div className="flex items-center gap-2.5 min-w-0">
           <h1 className="type-tagline text-apple-ink truncate">{activeTabLabel}</h1>
-          <span className="type-fine text-apple-ink48 font-mono hidden sm:inline">
-            CPU {status.cpu_percent}% · RAM {status.memory_percent}%
-          </span>
+
+          {rec?.recording && (
+            <span className="apple-glass-floating rounded-full px-2.5 py-1 flex items-center gap-1.5 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-apple-rec animate-ping" />
+              <span className="type-micro font-mono font-semibold text-apple-ink">
+                24/7 REC {formatClock(rec.elapsed_seconds || 0)}
+              </span>
+            </span>
+          )}
         </div>
 
-        {/* Right: Compact Telemetry + Single Action Blue Pill CTA */}
+        {/* Right: Telemetry + Controls CTA */}
         <div className="flex items-center gap-2 shrink-0">
-          <span className="type-fine font-mono text-apple-ink80 sm:hidden">
-            {status.cpu_percent}% · {status.memory_percent}%
+          <span className="type-fine font-mono text-apple-ink80 hidden sm:inline">
+            CPU {status.cpu_percent}% · RAM {status.memory_percent}%
           </span>
           <button
             type="button"
@@ -103,15 +125,15 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
         </div>
       </div>
 
-      {/* Expandable Liquid Glass Quick Controls Tray */}
+      {/* Expandable Transparent Controls & Transparency Mode Tray */}
       {expanded && (
         <div className="max-w-[980px] mx-auto px-4 pb-4 pt-1">
           <div className="apple-glass-card p-5 flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-apple-divider pb-3">
+            <div className="flex items-center justify-between border-b border-white/50 pb-3">
               <div>
-                <p className="type-body-strong text-apple-ink">pearOS System Telemetry</p>
-                <p className="type-fine text-apple-ink48 mt-0.5">
-                  Power: {status.power_plugged ? 'Connected' : `${status.battery_percent}%`}
+                <p className="type-body-strong text-apple-ink">pearOS Transparent Glass Controls</p>
+                <p className="type-fine text-apple-ink80 mt-0.5">
+                  Power: {status.power_plugged ? 'Connected' : `${status.battery_percent}%`} · 24/7 Recording: {rec?.recording ? 'Active' : 'Paused'}
                 </p>
               </div>
               <button
@@ -122,6 +144,29 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) 
               >
                 <X size={16} />
               </button>
+            </div>
+
+            {/* Live Transparency Level Selector */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="type-caption-strong text-apple-ink">Glass Transparency</span>
+              <div className="flex items-center gap-1.5">
+                {([
+                  { id: 'crystal', label: 'Crystal Clear' },
+                  { id: 'balanced', label: 'Liquid Glass' },
+                  { id: 'frosted', label: 'Frosted' },
+                ] as { id: GlassMode; label: string }[]).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setGlassMode(m.id)}
+                    className={`px-3.5 py-1.5 type-fine ${
+                      glassMode === m.id ? 'apple-option-chip-selected font-semibold' : 'apple-option-chip'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

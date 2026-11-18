@@ -10,10 +10,10 @@ from .camera import camera_core
 
 class CCTVRecorder:
     """
-    Background 30-Minute CCTV Recording Engine.
-    Streams live MJPEG frames from Laptop Cam or Mobile CCTV directly into an
-    FFmpeg H.264 MP4 pipeline (-movflags +faststart) with zero temporary frame files.
-    Supports single 30-minute recordings or continuous rolling 30-minute loops.
+    24/7 Always-On 30-Minute Rolling CCTV Recording Engine.
+    Automatically starts on server boot, encodes live MJPEG frames from Laptop Cam
+    or Mobile CCTV directly into FFmpeg H.264 MP4 (-movflags +faststart) in 30-minute
+    chunks, auto-recovers on transient errors, and caps storage to 24 clips (12h archive).
     """
 
     DEFAULT_DURATION_SECONDS = 30 * 60  # 1800 seconds (30 minutes)
@@ -30,29 +30,36 @@ class CCTVRecorder:
         self._thread: Optional[threading.Thread] = None
         self._ffmpeg_proc: Optional[subprocess.Popen] = None
 
+        self.always_on: bool = True
         self.recording: bool = False
         self.source: str = "laptop"  # "laptop" or "mobile"
         self.filename: Optional[str] = None
         self.started_at: float = 0.0
         self.max_seconds: int = self.DEFAULT_DURATION_SECONDS
         self.frames_written: int = 0
-        self.continuous_loop: bool = False
+        self.continuous_loop: bool = True
         self.last_error: Optional[str] = None
 
     def start_recording(
         self,
         source: str = "laptop",
         duration_minutes: int = 30,
-        continuous_loop: bool = False
+        continuous_loop: bool = True
     ) -> Dict[str, Any]:
         source = "mobile" if source == "mobile" else "laptop"
-        duration_secs = max(60, min(int(duration_minutes) * 60, 1800))  # 1 min to 30 min
+        duration_secs = max(60, min(int(duration_minutes) * 60, 1800))
+
+        # If already recording a different source, gracefully switch
+        if self.recording and self.source != source:
+            self.stop_recording(disable_always_on=False)
 
         with self._lock:
             if self.recording:
+                self.continuous_loop = continuous_loop
+                self.always_on = continuous_loop
                 return {
                     "success": True,
-                    "message": f"Already recording {self.source}",
+                    "message": f"Already recording {self.source} (24/7 Always-On)",
                     "status": self._build_status_unlocked()
                 }
 
@@ -61,6 +68,7 @@ class CCTVRecorder:
             self.source = source
             self.max_seconds = duration_secs
             self.continuous_loop = continuous_loop
+            self.always_on = continuous_loop
             self.frames_written = 0
             self.last_error = None
             self.started_at = time.time()
@@ -75,25 +83,27 @@ class CCTVRecorder:
 
             return {
                 "success": True,
-                "message": f"Started {duration_minutes}-minute {source} CCTV recording",
+                "message": f"Started {'24/7 Always-On ' if continuous_loop else ''}{duration_minutes}-min {source} CCTV recording",
                 "status": self._build_status_unlocked()
             }
 
-    def stop_recording(self) -> Dict[str, Any]:
+    def stop_recording(self, disable_always_on: bool = True) -> Dict[str, Any]:
         with self._lock:
+            if disable_always_on:
+                self.always_on = False
+                self.continuous_loop = False
             if not self.recording:
                 return {
                     "success": True,
                     "message": "No active recording",
                     "status": self._build_status_unlocked()
                 }
-            self.continuous_loop = False
             self._stop_event.set()
             was_source = self.source
             was_file = self.filename
 
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=4.0)
+            self._thread.join(timeout=5.0)
 
         return {
             "success": True,
@@ -101,6 +111,12 @@ class CCTVRecorder:
             "filename": was_file,
             "status": self.get_status()
         }
+
+    def set_always_on(self, enabled: bool, source: Optional[str] = None) -> Dict[str, Any]:
+        target_source = source or self.source
+        if enabled:
+            return self.start_recording(source=target_source, duration_minutes=30, continuous_loop=True)
+        return self.stop_recording(disable_always_on=True)
 
     def _spawn_ffmpeg(self, output_path: Path) -> subprocess.Popen:
         ffmpeg_bin = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
@@ -140,7 +156,15 @@ class CCTVRecorder:
                     self.started_at = time.time()
                     self.frames_written = 0
 
-                proc = self._spawn_ffmpeg(out_path)
+                try:
+                    proc = self._spawn_ffmpeg(out_path)
+                except Exception as spawn_err:
+                    self.last_error = f"FFmpeg start failed: {spawn_err}"
+                    if self.continuous_loop and not self._stop_event.is_set():
+                        self._stop_event.wait(timeout=3.0)
+                        continue
+                    break
+
                 with self._lock:
                     self._ffmpeg_proc = proc
 
@@ -153,9 +177,10 @@ class CCTVRecorder:
 
                         loop_t0 = time.time()
                         if self.source == "laptop":
+                            if not camera_core.laptop_active:
+                                camera_core.start_laptop_cam()
                             frame = camera_core.get_laptop_frame()
                         else:
-                            # Keep mobile camera awake during 30-min recording
                             camera_core.set_mobile_cctv_requested(True)
                             camera_core.mobile_last_active_time = time.time()
                             frame = camera_core.get_mobile_frame()
@@ -167,7 +192,7 @@ class CCTVRecorder:
                                 with self._lock:
                                     self.frames_written += 1
                             except BrokenPipeError:
-                                self.last_error = "FFmpeg encoder pipe closed unexpectedly"
+                                self.last_error = "FFmpeg pipe reset, auto-restarting segment"
                                 break
 
                         sleep_time = frame_interval - (time.time() - loop_t0)
@@ -186,7 +211,6 @@ class CCTVRecorder:
                     with self._lock:
                         self._ffmpeg_proc = None
 
-                # Prune very small/empty files if failed immediately
                 if out_path.exists() and out_path.stat().st_size < 1024:
                     try:
                         out_path.unlink()
@@ -197,6 +221,9 @@ class CCTVRecorder:
 
                 if not self.continuous_loop or self._stop_event.is_set():
                     break
+
+                # Brief pause before seamlessly starting the next 30-minute chunk
+                self._stop_event.wait(timeout=0.5)
         except Exception as e:
             self.last_error = str(e)
         finally:
@@ -225,6 +252,7 @@ class CCTVRecorder:
         remaining = max(0, self.max_seconds - elapsed)
         pct = round((elapsed / self.max_seconds) * 100.0, 1) if self.max_seconds > 0 else 0.0
         return {
+            "always_on": self.always_on,
             "recording": self.recording,
             "source": self.source,
             "filename": self.filename if self.recording else None,

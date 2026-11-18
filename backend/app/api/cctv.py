@@ -20,7 +20,11 @@ class TripwireConfigRequest(BaseModel):
 class RecordStartRequest(BaseModel):
     source: str = "laptop"  # "laptop" or "mobile"
     duration_minutes: int = 30
-    continuous_loop: bool = False
+    continuous_loop: bool = True
+
+class AlwaysOnRequest(BaseModel):
+    enabled: bool = True
+    source: str = "laptop"
 
 @router.get("/status")
 def get_cctv_status():
@@ -89,6 +93,10 @@ def start_cctv_recording(req: RecordStartRequest):
         duration_minutes=req.duration_minutes,
         continuous_loop=req.continuous_loop
     )
+
+@router.post("/record/always-on")
+def toggle_always_on_recording(req: AlwaysOnRequest):
+    return cctv_recorder.set_always_on(enabled=req.enabled, source=req.source)
 
 @router.post("/record/stop")
 def stop_cctv_recording():
