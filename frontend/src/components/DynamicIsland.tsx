@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Cpu, Zap, Lock, VolumeX, RefreshCw, X, Activity } from 'lucide-react';
+import { Lock, VolumeX, RefreshCw, X } from 'lucide-react';
 import { api } from '../services/api';
 
-export const DynamicIsland: React.FC = () => {
+interface DynamicIslandProps {
+  activeTabLabel: string;
+}
+
+export const DynamicIsland: React.FC<DynamicIslandProps> = ({ activeTabLabel }) => {
   const [expanded, setExpanded] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
   const [status, setStatus] = useState<any>({
-    cpu_percent: 14.2,
+    cpu_percent: 14.0,
     memory_percent: 42.0,
     battery_percent: 100,
     power_plugged: true
@@ -29,7 +33,7 @@ export const DynamicIsland: React.FC = () => {
     }, 1000);
 
     const checkOrientation = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight && window.innerHeight < 520);
+      setIsLandscape(window.innerWidth > window.innerHeight && window.innerHeight < 500);
     };
     window.addEventListener('resize', checkOrientation);
     checkOrientation();
@@ -41,42 +45,32 @@ export const DynamicIsland: React.FC = () => {
     };
   }, []);
 
-  // Landscape Light StandBy Crystal Clock Mode
+  // Landscape StandBy Tile (Pure Parchment + SF Pro Display)
   if (isLandscape) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#eef3fb]/90 backdrop-blur-3xl text-stitch-text flex items-center justify-around p-8 select-none">
-        <div className="flex flex-col items-center">
-          <span className="text-8xl font-display font-bold tracking-tighter text-stitch-primaryStrong font-mono">
+      <div className="fixed inset-0 z-50 bg-apple-parchment text-apple-ink flex items-center justify-around p-10 select-none">
+        <div className="flex flex-col items-start">
+          <span className="font-display font-semibold text-[72px] leading-none tracking-[-0.03em] text-apple-ink font-mono">
             {currentTime}
           </span>
-          <span className="text-xs uppercase tracking-[0.25em] text-stitch-muted mt-2">
-            pearOS Light StandBy
+          <span className="type-caption text-apple-ink48 mt-3">
+            pearOS StandBy
           </span>
         </div>
-        <div className="liquid-glass p-6 rounded-3xl w-80 flex flex-col gap-4">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-stitch-muted flex items-center gap-2">
-              <Cpu size={16} className="text-stitch-primaryStrong" /> CPU Core
-            </span>
-            <span className="font-mono font-semibold text-stitch-primary">{status.cpu_percent}%</span>
+        <div className="apple-glass-card p-6 w-80 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <span className="type-caption text-apple-ink80">CPU Load</span>
+            <span className="type-body-strong font-mono text-apple-ink">{status.cpu_percent}%</span>
           </div>
-          <div className="w-full bg-slate-900/10 h-2 rounded-full overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-stitch-primaryStrong to-sky-400 h-full transition-all duration-500"
-              style={{ width: `${Math.min(100, status.cpu_percent)}%` }}
-            />
+          <div className="w-full bg-apple-divider h-1.5 rounded-full overflow-hidden">
+            <div className="bg-apple-primary h-full transition-all" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
           </div>
-          <div className="flex justify-between items-center text-sm mt-1">
-            <span className="text-stitch-muted flex items-center gap-2">
-              <Activity size={16} className="text-stitch-tertiary" /> Memory
-            </span>
-            <span className="font-mono font-semibold text-stitch-tertiary">{status.memory_percent}%</span>
+          <div className="flex justify-between items-center mt-1">
+            <span className="type-caption text-apple-ink80">Memory</span>
+            <span className="type-body-strong font-mono text-apple-ink">{status.memory_percent}%</span>
           </div>
-          <div className="w-full bg-slate-900/10 h-2 rounded-full overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-stitch-tertiaryStrong to-purple-400 h-full transition-all duration-500"
-              style={{ width: `${Math.min(100, status.memory_percent)}%` }}
-            />
+          <div className="w-full bg-apple-divider h-1.5 rounded-full overflow-hidden">
+            <div className="bg-apple-ink h-full transition-all" style={{ width: `${Math.min(100, status.memory_percent)}%` }} />
           </div>
         </div>
       </div>
@@ -84,121 +78,95 @@ export const DynamicIsland: React.FC = () => {
   }
 
   return (
-    <header className="w-full px-3 pt-2.5 pb-1 flex justify-center relative z-40">
-      {!expanded ? (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          aria-label="Expand pearOS Dynamic Island"
-          className="w-full max-w-md liquid-pill rounded-full px-2.5 py-1.5 flex items-center justify-between gap-2 transition-all active:scale-[0.98]"
-        >
-          {/* Left: pearOS Core Status */}
-          <div className="flex items-center gap-2 pl-0.5">
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white/80 border border-slate-900/10 shadow-sm">
-              <span className="text-sm">🍐</span>
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-stitch-secondaryStrong shadow-[0_0_8px_#22c55e] animate-ping" />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-stitch-secondaryStrong" />
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="font-display text-xs font-bold text-stitch-text tracking-tight leading-tight">
-                pearOS Nexus
-              </span>
-              <span className="font-mono text-[9px] text-stitch-secondary font-semibold tracking-widest uppercase">
-                Core Synced
-              </span>
-            </div>
-          </div>
+    <header className="w-full apple-glass-nav relative z-40 shrink-0">
+      <div className="max-w-[980px] mx-auto h-[52px] px-4 flex items-center justify-between gap-3">
+        {/* Left: Category Tagline (21px / 600 per design.md sub-nav-frosted) */}
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h1 className="type-tagline text-apple-ink truncate">{activeTabLabel}</h1>
+          <span className="type-fine text-apple-ink48 font-mono hidden sm:inline">
+            CPU {status.cpu_percent}% · RAM {status.memory_percent}%
+          </span>
+        </div>
 
-          {/* Right: Telemetry Vital Chips */}
-          <div className="flex items-center gap-1.5 pr-0.5">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full liquid-glass-deep">
-              <span className="font-mono text-[9px] text-stitch-outline">CPU</span>
-              <div className="w-6 h-1.5 bg-slate-900/10 rounded-full overflow-hidden hidden sm:block">
-                <div className="h-full bg-stitch-primaryStrong rounded-full" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
+        {/* Right: Compact Telemetry + Single Action Blue Pill CTA */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="type-fine font-mono text-apple-ink80 sm:hidden">
+            {status.cpu_percent}% · {status.memory_percent}%
+          </span>
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="apple-btn-primary px-4 py-1.5 type-caption min-h-[34px] flex items-center gap-1"
+          >
+            {expanded ? 'Done' : 'Controls'}
+          </button>
+        </div>
+      </div>
+
+      {/* Expandable Liquid Glass Quick Controls Tray */}
+      {expanded && (
+        <div className="max-w-[980px] mx-auto px-4 pb-4 pt-1">
+          <div className="apple-glass-card p-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-apple-divider pb-3">
+              <div>
+                <p className="type-body-strong text-apple-ink">pearOS System Telemetry</p>
+                <p className="type-fine text-apple-ink48 mt-0.5">
+                  Power: {status.power_plugged ? 'Connected' : `${status.battery_percent}%`}
+                </p>
               </div>
-              <span className="font-mono text-[10px] font-bold text-stitch-primary">{status.cpu_percent}%</span>
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                aria-label="Close Controls"
+                className="apple-glass-chip w-9 h-9 rounded-full flex items-center justify-center"
+              >
+                <X size={16} />
+              </button>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full liquid-glass-deep">
-              <span className="font-mono text-[9px] text-stitch-outline">RAM</span>
-              <span className="font-mono text-[10px] font-bold text-stitch-tertiary">{status.memory_percent}%</span>
-            </div>
-
-            <div className="flex items-center gap-0.5 px-2 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-stitch-secondary">
-              <Zap size={11} className="animate-pulse" />
-              <span className="font-mono text-[10px] font-bold">
-                {status.battery_percent > 0 ? `${status.battery_percent}%` : 'AC'}
-              </span>
-            </div>
-          </div>
-        </button>
-      ) : (
-        <div className="w-full max-w-md liquid-glass rounded-3xl p-4 animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-900/10">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-stitch-secondaryStrong shadow-[0_0_8px_#22c55e]" />
-              <span className="font-display font-bold text-sm text-stitch-text">pearOS Nexus 4.0 Light Glass</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              aria-label="Close Dynamic Island"
-              className="w-8 h-8 rounded-full liquid-btn flex items-center justify-center text-stitch-muted"
-            >
-              <X size={15} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 my-3.5">
-            <div className="liquid-glass-deep p-3 rounded-2xl">
-              <span className="text-[10px] font-mono uppercase text-stitch-outline block">CPU Load</span>
-              <span className="text-2xl font-bold font-mono text-stitch-primary">{status.cpu_percent}%</span>
-              <div className="w-full bg-slate-900/10 h-1.5 rounded-full mt-2 overflow-hidden">
-                <div className="bg-stitch-primaryStrong h-full rounded-full" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-apple-parchment rounded-apple-lg p-4">
+                <span className="type-fine text-apple-ink48 block">CPU Utilization</span>
+                <span className="type-display-lg font-mono text-apple-ink">{status.cpu_percent}%</span>
+                <div className="w-full bg-apple-hairline h-1 rounded-full mt-2 overflow-hidden">
+                  <div className="bg-apple-primary h-full" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
+                </div>
+              </div>
+              <div className="bg-apple-parchment rounded-apple-lg p-4">
+                <span className="type-fine text-apple-ink48 block">Memory Used</span>
+                <span className="type-display-lg font-mono text-apple-ink">{status.memory_percent}%</span>
+                <div className="w-full bg-apple-hairline h-1 rounded-full mt-2 overflow-hidden">
+                  <div className="bg-apple-ink h-full" style={{ width: `${Math.min(100, status.memory_percent)}%` }} />
+                </div>
               </div>
             </div>
-            <div className="liquid-glass-deep p-3 rounded-2xl">
-              <span className="text-[10px] font-mono uppercase text-stitch-outline block">RAM Usage</span>
-              <span className="text-2xl font-bold font-mono text-stitch-tertiary">{status.memory_percent}%</span>
-              <div className="w-full bg-slate-900/10 h-1.5 rounded-full mt-2 overflow-hidden">
-                <div className="bg-stitch-tertiaryStrong h-full rounded-full" style={{ width: `${Math.min(100, status.memory_percent)}%` }} />
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={async () => {
-                await api.lockScreen();
-                setExpanded(false);
-              }}
-              className="liquid-btn rounded-2xl py-2.5 flex flex-col items-center gap-1"
-            >
-              <Lock size={16} className="text-stitch-primaryStrong" />
-              <span className="text-[11px] font-semibold text-stitch-text">Lock PC</span>
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                await api.clearRam();
-                setExpanded(false);
-              }}
-              className="liquid-btn rounded-2xl py-2.5 flex flex-col items-center gap-1"
-            >
-              <RefreshCw size={16} className="text-stitch-secondary" />
-              <span className="text-[11px] font-semibold text-stitch-text">Purge RAM</span>
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                await api.sendShortcut('XF86AudioMute');
-              }}
-              className="liquid-btn rounded-2xl py-2.5 flex flex-col items-center gap-1"
-            >
-              <VolumeX size={16} className="text-stitch-error" />
-              <span className="text-[11px] font-semibold text-stitch-text">Mute</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => { await api.lockScreen(); setExpanded(false); }}
+                className="apple-btn-primary px-5 py-2.5 type-caption flex items-center gap-1.5"
+              >
+                <Lock size={14} />
+                <span>Lock pearOS</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => { await api.clearRam(); setExpanded(false); }}
+                className="apple-btn-secondary px-5 py-2.5 type-caption flex items-center gap-1.5"
+              >
+                <RefreshCw size={14} />
+                <span>Purge RAM</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => api.sendShortcut('XF86AudioMute')}
+                className="apple-btn-pearl px-4 py-2 type-caption flex items-center gap-1.5"
+              >
+                <VolumeX size={14} />
+                <span>Mute Audio</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

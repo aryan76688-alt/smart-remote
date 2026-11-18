@@ -3,11 +3,11 @@ import { Play, VolumeX, Camera, Terminal, Lock } from 'lucide-react';
 import { api } from '../services/api';
 
 const TOUCHBAR_ACTIONS = [
-  { id: 'media_play', label: 'Play', icon: Play, colorClass: 'text-stitch-primaryStrong' },
-  { id: 'media_mute', label: 'Audio', icon: VolumeX, colorClass: 'text-stitch-tertiary' },
-  { id: 'key_print', label: 'Snapshot', icon: Camera, colorClass: 'text-stitch-secondary' },
-  { id: 'launch_terminal', label: 'Console', icon: Terminal, colorClass: 'text-sky-600' },
-  { id: 'lock_screen', label: 'Lock', icon: Lock, colorClass: 'text-stitch-error' },
+  { id: 'media_play', label: 'Play', icon: Play },
+  { id: 'media_mute', label: 'Mute', icon: VolumeX },
+  { id: 'key_print', label: 'Snapshot', icon: Camera },
+  { id: 'launch_terminal', label: 'Terminal', icon: Terminal },
+  { id: 'lock_screen', label: 'Lock', icon: Lock },
 ];
 
 export const TouchBar: React.FC = () => {
@@ -18,17 +18,17 @@ export const TouchBar: React.FC = () => {
   };
 
   return (
-    <section className="w-full px-3 py-1 flex justify-center relative z-30">
-      <div className="w-full max-w-md liquid-glass-subtle rounded-2xl p-1.5 flex items-center justify-between gap-1.5">
-        {TOUCHBAR_ACTIONS.map(({ id, label, icon: Icon, colorClass }) => (
+    <section className="w-full px-4 py-2 shrink-0">
+      <div className="max-w-[980px] mx-auto flex items-center gap-2 overflow-x-auto">
+        {TOUCHBAR_ACTIONS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => handleAction(id)}
-            className="flex-1 min-h-[44px] py-1.5 px-1 rounded-xl liquid-btn flex flex-col items-center justify-center gap-0.5"
+            className="apple-btn-pearl flex-1 min-w-[72px] min-h-[40px] px-3 py-2 flex items-center justify-center gap-1.5 type-caption shrink-0"
           >
-            <Icon size={17} className={colorClass} />
-            <span className="text-[10px] font-semibold text-stitch-text tracking-tight">{label}</span>
+            <Icon size={14} className="text-apple-primary" />
+            <span>{label}</span>
           </button>
         ))}
       </div>

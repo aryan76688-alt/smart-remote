@@ -34,68 +34,68 @@ export const FileDropView: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full px-3 pb-4 flex flex-col items-center">
-      <div className="w-full max-w-md h-full flex flex-col gap-3">
-        {/* Path Pill Header */}
-        <div className="liquid-glass rounded-2xl p-2.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+    <div className="w-full h-full px-4 pb-4 flex flex-col">
+      <div className="max-w-[980px] w-full mx-auto h-full flex flex-col gap-3">
+        {/* Path Header */}
+        <div className="apple-glass-card p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
               onClick={() => loadDirectory(parentPath)}
               disabled={currentPath === '/home/aryan'}
-              aria-label="Go up directory"
-              className="w-9 h-9 rounded-xl liquid-btn flex items-center justify-center text-stitch-text disabled:opacity-35 shrink-0"
+              aria-label="Parent Directory"
+              className="apple-btn-pearl w-10 h-10 flex items-center justify-center disabled:opacity-35 shrink-0"
             >
-              <ArrowLeft size={15} />
+              <ArrowLeft size={16} />
             </button>
-            <div className="flex items-center gap-1.5 font-mono text-xs text-stitch-text truncate">
-              <HardDrive size={14} className="text-stitch-primaryStrong shrink-0" />
+            <div className="flex items-center gap-1.5 type-caption font-mono text-apple-ink truncate">
+              <HardDrive size={15} className="text-apple-primary shrink-0" />
               <span className="truncate">{currentPath}</span>
             </div>
           </div>
-          <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-stitch-primary shrink-0 pr-1">
-            pearDrop
-          </span>
+          <span className="type-fine font-semibold text-apple-ink48 shrink-0 pr-1">pearDrop</span>
         </div>
 
-        {/* Light Crystal File List */}
-        <div className="flex-1 liquid-glass rounded-3xl p-2.5 overflow-y-auto flex flex-col gap-1.5">
+        {/* File List Utility Card */}
+        <div className="flex-1 apple-glass-card p-4 overflow-y-auto">
           {loading ? (
-            <div className="h-full flex items-center justify-center text-xs text-stitch-muted font-mono">
-              Loading vault...
+            <div className="h-full flex items-center justify-center type-caption text-apple-ink48">
+              Loading directory...
             </div>
           ) : items.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-xs text-stitch-muted font-mono">
+            <div className="h-full flex items-center justify-center type-caption text-apple-ink48">
               Directory is empty
             </div>
           ) : (
-            items.map((item) => (
-              <button
-                key={item.path}
-                type="button"
-                onClick={() => {
-                  if (item.is_dir) {
-                    loadDirectory(item.path);
-                  } else {
-                    window.open(`${window.location.origin}/api/files/download?path=${encodeURIComponent(item.path)}`, '_blank');
-                  }
-                }}
-                className="liquid-glass-deep rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-white/75 active:scale-[0.99] transition-all text-left"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {item.is_dir ? (
-                    <Folder size={17} className="text-stitch-primaryStrong shrink-0" />
-                  ) : (
-                    <File size={17} className="text-stitch-muted shrink-0" />
-                  )}
-                  <span className="text-xs font-semibold text-stitch-text truncate">{item.name}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-mono text-[10px] text-stitch-outline">{formatSize(item.size_bytes)}</span>
-                  {!item.is_dir && <Download size={14} className="text-stitch-secondary" />}
-                </div>
-              </button>
-            ))
+            <div className="flex flex-col divide-y divide-apple-divider">
+              {items.map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => {
+                    if (item.is_dir) {
+                      loadDirectory(item.path);
+                    } else {
+                      window.open(`${window.location.origin}/api/files/download?path=${encodeURIComponent(item.path)}`, '_blank');
+                    }
+                  }}
+                  className="py-3 px-1 flex items-center justify-between gap-3 text-left active:scale-[0.99] transition-transform"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {item.is_dir ? (
+                      <Folder size={18} className="text-apple-primary shrink-0" />
+                    ) : (
+                      <File size={18} className="text-apple-ink48 shrink-0" />
+                    )}
+                    <span className="type-caption-strong text-apple-ink truncate">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="type-fine font-mono text-apple-ink48">{formatSize(item.size_bytes)}</span>
+                    {!item.is_dir && <Download size={15} className="text-apple-primary" />}
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>

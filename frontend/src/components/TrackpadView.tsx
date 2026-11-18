@@ -46,38 +46,34 @@ export const TrackpadView: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full px-3 pb-4 flex flex-col items-center">
-      <div className="w-full max-w-md h-full flex flex-col gap-3">
-        {/* Control Pill Bar */}
-        <div className="liquid-glass rounded-2xl p-2.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
+    <div className="w-full h-full px-4 pb-4 flex flex-col">
+      <div className="max-w-[980px] w-full mx-auto h-full flex flex-col gap-3">
+        {/* Control Row */}
+        <div className="apple-glass-card p-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setGyroActive(!gyroActive)}
-              className={`min-h-[40px] px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                gyroActive
-                  ? 'bg-stitch-primaryStrong text-white border-blue-400 shadow-[0_4px_14px_rgba(0,122,255,0.35)]'
-                  : 'liquid-btn text-stitch-text'
+              className={`min-h-[40px] px-4 py-2 type-caption flex items-center gap-1.5 ${
+                gyroActive ? 'apple-btn-primary' : 'apple-option-chip'
               }`}
             >
-              <Compass size={14} className={gyroActive ? 'animate-spin' : 'text-stitch-primaryStrong'} />
-              <span>{gyroActive ? 'Gyro Live' : 'Air Mouse'}</span>
+              <Compass size={14} className={gyroActive ? 'animate-spin' : 'text-apple-primary'} />
+              <span>{gyroActive ? 'Air Mouse On' : 'Air Mouse'}</span>
             </button>
             <button
               type="button"
               onClick={() => setShowKeyboard(!showKeyboard)}
-              className={`min-h-[40px] px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                showKeyboard
-                  ? 'bg-stitch-tertiaryStrong text-white border-purple-400 shadow-[0_4px_14px_rgba(147,51,234,0.35)]'
-                  : 'liquid-btn text-stitch-text'
+              className={`min-h-[40px] px-4 py-2 type-caption flex items-center gap-1.5 ${
+                showKeyboard ? 'apple-btn-primary' : 'apple-option-chip'
               }`}
             >
-              <Keyboard size={14} className={showKeyboard ? '' : 'text-stitch-tertiary'} />
-              <span>Type</span>
+              <Keyboard size={14} className={showKeyboard ? '' : 'text-apple-primary'} />
+              <span>Keyboard</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {[
               { key: 'Up', icon: ArrowUp },
               { key: 'Down', icon: ArrowDown },
@@ -89,82 +85,78 @@ export const TrackpadView: React.FC = () => {
                 type="button"
                 aria-label={`Arrow ${key}`}
                 onClick={() => api.sendShortcut(key)}
-                className="w-9 h-9 liquid-btn rounded-xl flex items-center justify-center text-stitch-muted hover:text-stitch-text"
+                className="apple-btn-pearl w-10 h-10 flex items-center justify-center"
               >
-                <Icon size={14} />
+                <Icon size={15} />
               </button>
             ))}
           </div>
         </div>
 
-        {/* Keyboard Drawer */}
+        {/* Pill Search-Style Keyboard Drawer */}
         {showKeyboard && (
-          <form onSubmit={handleSendText} className="liquid-glass rounded-2xl p-2.5 flex gap-2">
+          <form onSubmit={handleSendText} className="apple-glass-card p-3 flex gap-2">
             <input
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Send text to pearOS cursor..."
-              className="flex-1 bg-white/80 border border-slate-900/10 px-3 py-2 rounded-xl text-xs text-stitch-text placeholder:text-stitch-outline focus:outline-none focus:border-stitch-primaryStrong"
+              placeholder="Type text to send to pearOS..."
+              className="flex-1 apple-search-input px-5 type-caption"
               autoFocus
             />
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-stitch-primaryStrong hover:bg-blue-600 text-white text-xs font-semibold flex items-center gap-1 shadow-[0_4px_14px_rgba(0,122,255,0.35)]"
+              className="apple-btn-primary px-5 min-h-[44px] type-caption flex items-center gap-1.5"
             >
               <span>Send</span>
-              <CornerDownLeft size={13} />
+              <CornerDownLeft size={14} />
             </button>
           </form>
         )}
 
-        {/* Transparent Light Crystal Trackpad Surface */}
+        {/* Liquid Glass Trackpad Surface */}
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onClick={() => api.clickMouse(1)}
-          className="flex-1 liquid-glass rounded-3xl relative flex flex-col items-center justify-center cursor-crosshair active:bg-white/75 transition-colors overflow-hidden"
+          className="flex-1 apple-glass-card relative flex flex-col items-center justify-center cursor-crosshair overflow-hidden"
         >
-          <div className="pointer-events-none flex flex-col items-center gap-2 opacity-75">
-            <div className="w-14 h-14 rounded-full bg-white/80 border border-white shadow-sm flex items-center justify-center text-stitch-primaryStrong">
-              <MousePointer size={24} />
+          <div className="pointer-events-none flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-full bg-apple-parchment border border-apple-hairline flex items-center justify-center text-apple-primary">
+              <MousePointer size={20} />
             </div>
-            <span className="font-display text-xs uppercase tracking-[0.2em] text-stitch-text font-bold">
-              Liquid Glass Trackpad
-            </span>
-            <span className="font-mono text-[10px] text-stitch-muted">
-              Drag to Steer • Tap to Click
-            </span>
+            <p className="type-body-strong text-apple-ink">Trackpad</p>
+            <p className="type-fine text-apple-ink48">Drag to move · Tap to click</p>
           </div>
 
-          {/* Light Transparent Vertical Scroll Strip */}
+          {/* Scroll Rail */}
           <div
             onTouchMove={(e) => {
               e.stopPropagation();
               api.scrollMouse(e.touches[0].clientY > 260 ? 5 : -5);
             }}
-            className="absolute right-2.5 top-5 bottom-5 w-7 liquid-glass-deep rounded-full flex flex-col items-center justify-between py-3 text-stitch-outline"
+            className="absolute right-3 top-5 bottom-5 w-8 bg-apple-parchment border border-apple-hairline rounded-full flex flex-col items-center justify-between py-3 text-apple-ink48"
           >
             <ArrowUp size={12} />
-            <span className="font-mono text-[8px] font-bold tracking-widest rotate-90 text-stitch-primary">SCROLL</span>
+            <span className="type-micro font-mono rotate-90 text-apple-ink80">SCROLL</span>
             <ArrowDown size={12} />
           </div>
         </div>
 
-        {/* Tactile Light Click Buttons */}
-        <div className="grid grid-cols-2 gap-3 h-14">
+        {/* Left & Right Click Buttons */}
+        <div className="grid grid-cols-2 gap-3 h-[52px]">
           <button
             type="button"
             onClick={() => api.clickMouse(1)}
-            className="liquid-glass rounded-2xl flex items-center justify-center font-display text-xs font-bold tracking-wide text-stitch-text active:bg-stitch-primaryStrong active:text-white active:scale-[0.97] transition-all"
+            className="apple-btn-pearl h-full flex items-center justify-center type-caption-strong"
           >
             Left Click
           </button>
           <button
             type="button"
             onClick={() => api.clickMouse(3)}
-            className="liquid-glass rounded-2xl flex items-center justify-center font-display text-xs font-bold tracking-wide text-stitch-text active:bg-stitch-tertiaryStrong active:text-white active:scale-[0.97] transition-all"
+            className="apple-btn-pearl h-full flex items-center justify-center type-caption-strong"
           >
             Right Click
           </button>

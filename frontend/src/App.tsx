@@ -14,33 +14,55 @@ type Tab = 'cctv' | 'trackpad' | 'maps' | 'ai' | 'system' | 'files';
 const DOCK_TABS: { id: Tab; label: string; icon: React.ComponentType<{ size?: number | string; className?: string }> }[] = [
   { id: 'trackpad', label: 'Remote', icon: MousePointer },
   { id: 'cctv', label: 'CCTV', icon: Video },
-  { id: 'maps', label: 'Radar', icon: MapPin },
+  { id: 'maps', label: 'Map', icon: MapPin },
   { id: 'ai', label: 'Agents', icon: Bot },
   { id: 'system', label: 'Cockpit', icon: Sliders },
-  { id: 'files', label: 'Vault', icon: Folder },
+  { id: 'files', label: 'Files', icon: Folder },
 ];
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('cctv');
 
   return (
-    <div className="relative flex flex-col h-screen w-screen overflow-hidden bg-stitch-bg text-stitch-text font-sans">
-      {/* Daylight Liquid Glass Aurora Canvas & Pastel Ambient Light Mesh */}
-      <div className="aurora-canvas" />
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-sky-300/35 rounded-full blur-[95px] animate-pulse" />
-        <div className="absolute top-[40%] -left-24 w-80 h-80 bg-purple-300/30 rounded-full blur-[100px]" />
-        <div className="absolute bottom-14 -right-20 w-80 h-80 bg-emerald-300/25 rounded-full blur-[95px]" />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-apple-parchment text-apple-ink font-sans">
+      {/* Row 1: Apple Global Nav (44px, pure #000000 per design.md) */}
+      <div className="h-[44px] w-full bg-apple-black text-white px-4 flex items-center justify-between shrink-0 z-50">
+        <div className="max-w-[980px] w-full mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm leading-none">🍐</span>
+            <span className="type-fine text-white/95 tracking-tight">pearOS</span>
+          </div>
+
+          <div className="hidden md:flex items-center gap-6">
+            {DOCK_TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={`type-fine transition-opacity ${
+                  activeTab === id ? 'text-white opacity-100' : 'text-apple-mutedDark opacity-80 hover:opacity-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-apple-onDark" />
+            <span className="type-fine text-apple-mutedDark font-mono">Nexus Live</span>
+          </div>
+        </div>
       </div>
 
-      {/* Top Light Dynamic Island Telemetry Pill */}
-      <DynamicIsland />
+      {/* Row 2: Frosted Liquid Glass Sub-Nav (52px, design.md sub-nav-frosted) */}
+      <DynamicIsland activeTabLabel={DOCK_TABS.find((t) => t.id === activeTab)?.label || 'CCTV'} />
 
-      {/* Transparent Light OLED Touch Bar */}
+      {/* Pearl Utility Strip */}
       <TouchBar />
 
-      {/* Main Spatial Viewport */}
-      <main className="relative z-10 flex-1 overflow-hidden pb-20 pt-1">
+      {/* Main Museum-Gallery Workspace */}
+      <main className="flex-1 overflow-hidden pb-[84px]">
         {activeTab === 'trackpad' && <TrackpadView />}
         {activeTab === 'cctv' && <CctvDeckView />}
         {activeTab === 'maps' && <GoogleMapView />}
@@ -49,9 +71,9 @@ export const App: React.FC = () => {
         {activeTab === 'files' && <FileDropView />}
       </main>
 
-      {/* Floating Light Liquid-Glass Bottom Dock */}
+      {/* Floating Liquid Glass Sticky Bar (64px, design.md floating-sticky-bar) */}
       <nav aria-label="Primary Navigation" className="fixed bottom-3 inset-x-3 z-40 flex justify-center pointer-events-none">
-        <div className="pointer-events-auto liquid-pill rounded-full p-1.5 flex items-center justify-between gap-1 w-full max-w-md">
+        <div className="pointer-events-auto apple-glass-floating rounded-full h-[60px] px-2 flex items-center justify-between gap-1 w-full max-w-[560px]">
           {DOCK_TABS.map(({ id, label, icon: Icon }) => {
             const isActive = activeTab === id;
             return (
@@ -59,17 +81,14 @@ export const App: React.FC = () => {
                 key={id}
                 type="button"
                 onClick={() => setActiveTab(id)}
-                className={`relative flex-1 min-h-[46px] py-1.5 px-1 rounded-full flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
+                className={`flex-1 min-h-[44px] py-1.5 px-2 rounded-full flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-95 ${
                   isActive
-                    ? 'bg-stitch-primaryStrong text-white shadow-[0_6px_18px_rgba(0,122,255,0.38)]'
-                    : 'text-stitch-muted hover:text-stitch-text hover:bg-white/50'
+                    ? 'bg-apple-primary text-white'
+                    : 'text-apple-ink80 hover:text-apple-ink'
                 }`}
               >
-                <Icon size={18} className={id === 'ai' && !isActive ? 'text-stitch-tertiary' : ''} />
-                {id === 'cctv' && !isActive && (
-                  <span className="absolute top-1.5 right-3 w-1.5 h-1.5 rounded-full bg-stitch-secondaryStrong shadow-[0_0_6px_#22c55e]" />
-                )}
-                <span className="text-[9px] font-semibold tracking-tight">{label}</span>
+                <Icon size={17} />
+                <span className="type-micro font-semibold">{label}</span>
               </button>
             );
           })}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Laptop, Smartphone, Flame, Radar, RefreshCw,
-  Disc, Square, Play, Download, Trash2, FolderLock, Repeat, X
+  Disc, Square, Play, Download, Trash2, Repeat, X
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -61,7 +61,6 @@ export const CctvDeckView: React.FC = () => {
     } else if (!(recorder.recording && recorder.source === 'mobile')) {
       api.toggleMobileCctv(false);
     }
-
     return () => {
       if (!(recorder.recording && recorder.source === 'mobile')) {
         api.toggleMobileCctv(false);
@@ -127,332 +126,267 @@ export const CctvDeckView: React.FC = () => {
   const totalMb = recordings.reduce((acc, r) => acc + (r.size_mb || 0), 0).toFixed(1);
 
   return (
-    <div className="w-full h-full overflow-y-auto px-3 pb-6 flex flex-col items-center">
-      <div className="w-full max-w-md flex flex-col gap-3">
+    <div className="w-full h-full overflow-y-auto px-4 pb-8">
+      <div className="max-w-[980px] mx-auto flex flex-col gap-5">
 
-        {/* Main Light Crystal CCTV & 30-Minute Recorder Enclosure */}
-        <div className="liquid-glass rounded-3xl p-3.5 flex flex-col gap-3.5">
+        {/* Section 1: Photography-First Live CCTV Stage (Dark Tile #272729 per design.md) */}
+        <section className="apple-glass-card p-5 flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="type-tagline text-apple-ink">Live Surveillance</h2>
+              <p className="type-caption text-apple-ink48">
+                {activeFeed === 'laptop' ? 'Laptop Camera · Active' : 'Mobile Phone CCTV · Lockscreen Capable'}
+              </p>
+            </div>
 
-          {/* Camera Pill Switcher */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="inline-flex p-1 liquid-glass-deep rounded-2xl gap-1">
+            {/* Configurator Option Chips (design.md configurator-option-chip) */}
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setActiveFeed('laptop')}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeFeed === 'laptop'
-                    ? 'bg-stitch-primaryStrong text-white shadow-[0_4px_14px_rgba(0,122,255,0.35)]'
-                    : 'text-stitch-muted hover:text-stitch-text'
+                className={`px-4 py-2 type-caption flex items-center gap-1.5 min-h-[40px] ${
+                  activeFeed === 'laptop' ? 'apple-option-chip-selected font-semibold' : 'apple-option-chip'
                 }`}
               >
-                <Laptop size={14} />
-                <span>Laptop Cam</span>
+                <Laptop size={14} className="text-apple-primary" />
+                <span>Laptop</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveFeed('mobile')}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                  activeFeed === 'mobile'
-                    ? 'bg-stitch-tertiaryStrong text-white shadow-[0_4px_14px_rgba(147,51,234,0.35)]'
-                    : 'text-stitch-muted hover:text-stitch-text'
+                className={`px-4 py-2 type-caption flex items-center gap-1.5 min-h-[40px] ${
+                  activeFeed === 'mobile' ? 'apple-option-chip-selected font-semibold' : 'apple-option-chip'
                 }`}
               >
-                <Smartphone size={14} />
+                <Smartphone size={14} className="text-apple-primary" />
                 <span>Mobile CCTV</span>
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setFeedKey(Date.now())}
-              aria-label="Refresh CCTV stream"
-              className="w-9 h-9 rounded-full liquid-btn flex items-center justify-center text-stitch-muted"
-            >
-              <RefreshCw size={14} />
-            </button>
           </div>
 
-          {/* Spatial Live Camera Viewport */}
-          <div className="relative w-full h-60 rounded-2xl overflow-hidden bg-slate-200/80 border border-white/90 shadow-md">
+          {/* Media Stage with the single Apple Product Shadow */}
+          <div className="relative w-full h-64 sm:h-80 rounded-apple-lg overflow-hidden bg-apple-tile1 apple-product-shadow">
             <img
               key={feedKey}
               src={streamUrl}
-              alt="Live pearOS CCTV Feed"
+              alt="pearOS Live CCTV Stream"
               className="w-full h-full object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).src =
-                  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360'><rect width='100%' height='100%' fill='%23e2e8f0'/><text x='50%' y='50%' fill='%23475569' font-family='monospace' font-size='15' text-anchor='middle'>Awaiting CCTV Video Feed...</text></svg>";
+                  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360'><rect width='100%' height='100%' fill='%23272729'/><text x='50%' y='50%' fill='%23cccccc' font-family='sans-serif' font-size='15' text-anchor='middle'>Awaiting CCTV Feed...</text></svg>";
               }}
             />
 
-            {/* Top Light Glass HUD */}
-            <div className="absolute top-0 inset-x-0 p-2.5 flex items-center justify-between pointer-events-none">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/80 backdrop-blur-md border border-white/90 shadow-sm">
-                <span className={`w-2 h-2 rounded-full ${recorder.recording ? 'bg-stitch-errorStrong animate-ping' : 'bg-stitch-secondaryStrong animate-pulse'}`} />
-                <span className={`font-mono text-[10px] font-bold tracking-wider ${recorder.recording ? 'text-stitch-error' : 'text-stitch-secondary'}`}>
-                  {recorder.recording ? `REC • ${formatClock(recorder.elapsed_seconds)}` : activeFeed === 'laptop' ? 'CAM 01 • LIVE' : 'MOBILE 02 • LIVE'}
+            {/* Top Frosted Pill & Circular Refresh Chip (44x44px design.md button-icon-circular) */}
+            <div className="absolute top-3 inset-x-3 flex items-center justify-between">
+              <div className="apple-glass-floating rounded-full px-3 py-1.5 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${recorder.recording ? 'bg-apple-rec animate-ping' : 'bg-apple-primary'}`} />
+                <span className="type-fine font-mono font-semibold text-apple-ink">
+                  {recorder.recording
+                    ? `REC ${formatClock(recorder.elapsed_seconds)}`
+                    : activeFeed === 'laptop' ? 'CAM 01 LIVE' : 'MOBILE 02 LIVE'}
                 </span>
               </div>
 
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/80 border border-white/90 text-stitch-primary font-semibold backdrop-blur-md shadow-sm">
-                H.264 MP4
-              </span>
-            </div>
-
-            {/* Optical Reticle Corners */}
-            <div className="absolute inset-x-10 inset-y-10 pointer-events-none flex flex-col justify-between opacity-70">
-              <div className="flex justify-between">
-                <div className="w-3.5 h-3.5 border-t-2 border-l-2 border-stitch-primaryStrong rounded-tl-sm" />
-                <div className="w-3.5 h-3.5 border-t-2 border-r-2 border-stitch-primaryStrong rounded-tr-sm" />
-              </div>
-              <div className="flex justify-between">
-                <div className="w-3.5 h-3.5 border-b-2 border-l-2 border-stitch-primaryStrong rounded-bl-sm" />
-                <div className="w-3.5 h-3.5 border-b-2 border-r-2 border-stitch-primaryStrong rounded-br-sm" />
-              </div>
+              <button
+                type="button"
+                onClick={() => setFeedKey(Date.now())}
+                aria-label="Refresh Camera Feed"
+                className="apple-glass-chip w-[44px] h-[44px] rounded-full flex items-center justify-center"
+              >
+                <RefreshCw size={17} />
+              </button>
             </div>
 
             {/* Laser Tripwire Overlay */}
             {tripwire && (
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
-                <div className="w-full h-0.5 bg-stitch-errorStrong shadow-[0_0_14px_#ef4444] animate-pulse" />
-                <span className="absolute bg-white/90 border border-red-300 text-stitch-error text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow">
+                <div className="w-full h-0.5 bg-apple-rec" />
+                <span className="absolute apple-glass-floating px-3 py-1 rounded-full type-micro font-mono font-semibold text-apple-rec uppercase">
                   Tripwire Armed
                 </span>
               </div>
             )}
 
-            {/* Bottom Light Glass HUD Toggles */}
-            <div className="absolute bottom-0 inset-x-0 p-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
+            {/* Bottom Floating Translucent Controls over Photography */}
+            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleThermalToggle}
-                  className={`px-2.5 py-1.5 rounded-full backdrop-blur-md text-[10px] font-mono font-bold flex items-center gap-1 border transition-all active:scale-95 shadow-sm ${
-                    thermal
-                      ? 'bg-stitch-tertiaryStrong text-white border-purple-400'
-                      : 'bg-white/80 border-white/90 text-stitch-text'
+                  className={`px-3.5 py-2 rounded-full type-fine font-semibold flex items-center gap-1.5 transition-transform active:scale-95 ${
+                    thermal ? 'bg-apple-primary text-white' : 'apple-glass-chip'
                   }`}
                 >
-                  <Flame size={12} />
-                  <span>Thermal: {thermal ? 'ON' : 'OFF'}</span>
+                  <Flame size={13} />
+                  <span>Thermal {thermal ? 'On' : 'Off'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleTripwireToggle}
-                  className={`px-2.5 py-1.5 rounded-full backdrop-blur-md text-[10px] font-mono font-bold flex items-center gap-1 border transition-all active:scale-95 shadow-sm ${
-                    tripwire
-                      ? 'bg-stitch-secondaryStrong text-white border-emerald-400'
-                      : 'bg-white/80 border-white/90 text-stitch-text'
+                  className={`px-3.5 py-2 rounded-full type-fine font-semibold flex items-center gap-1.5 transition-transform active:scale-95 ${
+                    tripwire ? 'bg-apple-primary text-white' : 'apple-glass-chip'
                   }`}
                 >
-                  <Radar size={12} />
-                  <span>Tripwire: {tripwire ? 'ARMED' : 'OFF'}</span>
+                  <Radar size={13} />
+                  <span>Tripwire {tripwire ? 'On' : 'Off'}</span>
                 </button>
               </div>
-
-              <span className="font-mono text-[9px] font-semibold text-stitch-secondary bg-white/85 px-2 py-1 rounded-full border border-white/90 shadow-sm">
-                Lockscreen OK
-              </span>
             </div>
           </div>
+        </section>
 
-          {/* 30-Minute CCTV Recording Controller */}
-          <div className="liquid-glass-deep rounded-2xl p-4 flex flex-col items-center gap-3">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <h3 className="font-display font-bold text-sm text-stitch-text">
-                  30-Minute CCTV Recorder
-                </h3>
-                <p className="text-[11px] text-stitch-muted">
-                  {recorder.recording
-                    ? `Recording ${recorder.source.toUpperCase()} • ${recorder.frames_written} frames`
-                    : `Target: ${activeFeed === 'laptop' ? 'Laptop Webcam' : 'Mobile Phone CCTV'}`}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setContinuousLoop(!continuousLoop)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1 border transition-all ${
-                  continuousLoop || recorder.continuous_loop
-                    ? 'bg-stitch-primaryStrong text-white border-blue-400 shadow-sm'
-                    : 'bg-white/70 border-slate-900/10 text-stitch-muted'
-                }`}
-              >
-                <Repeat size={11} />
-                <span>Auto-Loop</span>
-              </button>
-            </div>
-
-            {/* Light Liquid Glow Circular 30:00 Progress Ring Button */}
-            <div className="relative flex items-center justify-center my-1">
-              <svg className="w-40 h-40 -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  fill="transparent"
-                  stroke="rgba(15, 23, 42, 0.10)"
-                  strokeWidth="4.5"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  fill="transparent"
-                  stroke={recorder.recording ? '#ef4444' : '#007AFF'}
-                  strokeWidth="4.5"
-                  strokeLinecap="round"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={recorder.recording ? dashOffset : circumference}
-                  className="transition-all duration-700"
-                  style={{
-                    filter: recorder.recording ? 'drop-shadow(0 0 6px rgba(239,68,68,0.65))' : 'none'
-                  }}
-                />
-              </svg>
-
+        {/* Section 2: 30-Minute CCTV Recording Studio (Store Utility Card 18px) */}
+        <section className="apple-glass-card p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col gap-2 text-center sm:text-left">
+            <h3 className="type-tagline text-apple-ink">30-Minute Recorder</h3>
+            <p className="type-body text-apple-ink80">
+              {recorder.recording
+                ? `Recording ${recorder.source === 'mobile' ? 'Mobile CCTV' : 'Laptop Cam'} · ${recorder.frames_written} frames`
+                : 'Capture up to 30 minutes of H.264 MP4 footage directly in the background.'}
+            </p>
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
               <button
                 type="button"
                 disabled={busy}
                 onClick={handleRecordToggle}
-                className={`absolute w-28 h-28 rounded-full flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 border ${
-                  recorder.recording
-                    ? 'bg-gradient-to-tr from-red-500 to-rose-400 text-white border-red-200 shadow-[0_10px_30px_rgba(239,68,68,0.40)]'
-                    : 'bg-gradient-to-tr from-white/95 via-white/80 to-sky-50/90 text-stitch-text border-white shadow-[0_10px_28px_rgba(0,122,255,0.16)]'
+                className="apple-btn-primary px-6 py-3 type-caption flex items-center gap-2 min-h-[44px]"
+              >
+                {recorder.recording ? <Square size={14} className="fill-white" /> : <Disc size={15} />}
+                <span>{recorder.recording ? 'Stop & Save Clip' : 'Start 30-Min Recording'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setContinuousLoop(!continuousLoop)}
+                className={`px-4 py-2.5 type-caption flex items-center gap-1.5 min-h-[44px] ${
+                  continuousLoop || recorder.continuous_loop
+                    ? 'apple-option-chip-selected font-semibold'
+                    : 'apple-option-chip'
                 }`}
               >
-                {recorder.recording ? (
-                  <>
-                    <Square size={22} className="text-white fill-white animate-pulse" />
-                    <span className="font-mono font-bold text-base text-white tracking-wider mt-0.5">
-                      {formatClock(recorder.elapsed_seconds)}
-                    </span>
-                    <span className="font-mono text-[9px] text-white/90 uppercase tracking-widest">
-                      STOP • 30:00
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Disc size={26} className="text-stitch-errorStrong" />
-                    <span className="font-display font-bold text-xs text-stitch-text mt-0.5">
-                      REC 30 MIN
-                    </span>
-                    <span className="font-mono text-[9px] text-stitch-primary font-semibold uppercase tracking-wider">
-                      TAP TO START
-                    </span>
-                  </>
-                )}
+                <Repeat size={14} className="text-apple-primary" />
+                <span>Auto-Loop 30m</span>
               </button>
             </div>
+          </div>
 
-            <div className="w-full flex items-center justify-between text-[11px] px-3 py-1.5 rounded-xl bg-white/65 border border-slate-900/10 text-stitch-muted">
-              <span>Remaining: <strong className="font-mono text-stitch-text">{formatClock(recorder.remaining_seconds)}</strong></span>
-              <span className="font-mono text-stitch-secondary font-semibold">H.264 Stream Pipe</span>
+          {/* Minimal Precision Circular Timer Ring */}
+          <div className="relative flex items-center justify-center shrink-0">
+            <svg className="w-36 h-36 -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="transparent" stroke="#e0e0e0" strokeWidth="3.5" />
+              <circle
+                cx="50"
+                cy="50"
+                r="42"
+                fill="transparent"
+                stroke={recorder.recording ? '#ff3b30' : '#0066cc'}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={recorder.recording ? dashOffset : circumference}
+                className="transition-all duration-700"
+              />
+            </svg>
+            <div className="absolute flex flex-col items-center">
+              <span className="font-mono text-xl font-semibold text-apple-ink">
+                {formatClock(recorder.elapsed_seconds)}
+              </span>
+              <span className="type-micro font-mono text-apple-ink48 uppercase">
+                of 30:00
+              </span>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Recordings Vault (Saved 30-Min MP4 Clips) */}
-        <div className="liquid-glass rounded-3xl p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FolderLock size={17} className="text-stitch-primaryStrong" />
-              <h4 className="font-display font-bold text-sm text-stitch-text">
-                Recordings Vault (30m Clips)
-              </h4>
+        {/* Section 3: Recordings Vault */}
+        <section className="apple-glass-card p-6 flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-apple-divider pb-3">
+            <div>
+              <h3 className="type-body-strong text-apple-ink">Recordings Vault</h3>
+              <p className="type-fine text-apple-ink48 mt-0.5">{recordings.length} saved clips · {totalMb} MB</p>
             </div>
-            <span className="font-mono text-[10px] px-2.5 py-1 rounded-full liquid-glass-deep text-stitch-muted font-semibold">
-              {recordings.length} Clips • {totalMb} MB
-            </span>
           </div>
 
           {recordings.length === 0 ? (
-            <div className="liquid-glass-deep rounded-2xl py-6 px-4 text-center text-xs text-stitch-muted">
-              No recordings yet. Tap <strong className="text-stitch-text">REC 30 MIN</strong> above to start a background 30-minute CCTV clip.
-            </div>
+            <p className="type-caption text-apple-ink48 py-4 text-center">
+              No recordings saved yet. Tap Start 30-Min Recording above to capture your first clip.
+            </p>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col divide-y divide-apple-divider">
               {recordings.map((clip) => (
-                <div
-                  key={clip.filename}
-                  className="liquid-glass-deep rounded-2xl p-2.5 flex items-center justify-between gap-2"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                      clip.source === 'mobile'
-                        ? 'bg-purple-500/15 border-purple-500/25 text-stitch-tertiary'
-                        : 'bg-blue-500/15 border-blue-500/25 text-stitch-primary'
-                    }`}>
-                      {clip.source === 'mobile' ? <Smartphone size={18} /> : <Laptop size={18} />}
+                <div key={clip.filename} className="py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-apple-sm bg-apple-parchment border border-apple-hairline flex items-center justify-center text-apple-primary shrink-0">
+                      {clip.source === 'mobile' ? <Smartphone size={17} /> : <Laptop size={17} />}
                     </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-mono text-xs font-semibold text-stitch-text truncate">{clip.filename}</span>
-                      <span className="font-mono text-[10px] text-stitch-outline">
-                        {clip.created_at} • {clip.size_mb} MB {clip.is_active ? '• LIVE' : ''}
-                      </span>
+                    <div className="min-w-0">
+                      <p className="type-caption-strong font-mono text-apple-ink truncate">{clip.filename}</p>
+                      <p className="type-fine text-apple-ink48 font-mono">
+                        {clip.created_at} · {clip.size_mb} MB {clip.is_active ? '· Recording' : ''}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {!clip.is_active && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setPlayingClip(clip)}
-                          aria-label={`Play ${clip.filename}`}
-                          className="w-9 h-9 rounded-full liquid-btn flex items-center justify-center text-stitch-primaryStrong"
-                        >
-                          <Play size={15} />
-                        </button>
-                        <a
-                          href={`${window.location.origin}${clip.download_url}`}
-                          download
-                          aria-label={`Download ${clip.filename}`}
-                          className="w-9 h-9 rounded-full liquid-btn flex items-center justify-center text-stitch-secondary"
-                        >
-                          <Download size={14} />
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteClip(clip.filename)}
-                          aria-label={`Delete ${clip.filename}`}
-                          className="w-9 h-9 rounded-full liquid-btn flex items-center justify-center text-stitch-error"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  {!clip.is_active && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPlayingClip(clip)}
+                        aria-label={`Play ${clip.filename}`}
+                        className="apple-btn-primary px-3.5 py-2 type-fine flex items-center gap-1 min-h-[36px]"
+                      >
+                        <Play size={12} />
+                        <span>Play</span>
+                      </button>
+                      <a
+                        href={`${window.location.origin}${clip.download_url}`}
+                        download
+                        aria-label={`Download ${clip.filename}`}
+                        className="apple-btn-pearl w-9 h-9 flex items-center justify-center"
+                      >
+                        <Download size={14} className="text-apple-primary" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClip(clip.filename)}
+                        aria-label={`Delete ${clip.filename}`}
+                        className="apple-btn-pearl w-9 h-9 flex items-center justify-center"
+                      >
+                        <Trash2 size={14} className="text-apple-ink80" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       </div>
 
-      {/* Light Transparent Liquid-Glass Video Playback Modal */}
+      {/* Liquid Glass Video Player Modal */}
       {playingClip && (
-        <div className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-2xl flex items-center justify-center p-4">
-          <div className="w-full max-w-md liquid-glass rounded-3xl p-4 flex flex-col gap-3">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="w-full max-w-lg apple-glass-card p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="min-w-0">
-                <h4 className="font-mono text-xs font-bold text-stitch-text truncate">{playingClip.filename}</h4>
-                <span className="font-mono text-[10px] text-stitch-muted">{playingClip.created_at} • {playingClip.size_mb} MB</span>
+                <h4 className="type-caption-strong font-mono text-apple-ink truncate">{playingClip.filename}</h4>
+                <p className="type-fine text-apple-ink48 font-mono">{playingClip.created_at} · {playingClip.size_mb} MB</p>
               </div>
               <button
                 type="button"
                 onClick={() => setPlayingClip(null)}
-                aria-label="Close video player"
-                className="w-9 h-9 rounded-full liquid-btn flex items-center justify-center text-stitch-text"
+                aria-label="Close Video Player"
+                className="apple-glass-chip w-[44px] h-[44px] rounded-full flex items-center justify-center"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
             <video
               controls
               autoPlay
               playsInline
-              className="w-full rounded-2xl bg-slate-900 border border-white/80 max-h-80 shadow-md"
+              className="w-full rounded-apple-lg bg-apple-black apple-product-shadow max-h-80"
               src={`${window.location.origin}${playingClip.stream_url}`}
             />
           </div>
