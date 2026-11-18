@@ -83,13 +83,13 @@ def _stream_mobile_feed():
     camera_core.set_mobile_cctv_requested(True)
     try:
         while True:
+            camera_core.mobile_last_active_time = time.time()
             frame = camera_core.get_mobile_frame()
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-            time.sleep(0.05)
+            time.sleep(0.08)
     finally:
-        # Keep active for a moment
-        pass
+        camera_core.set_mobile_cctv_requested(False)
 
 @router.get("/laptop/stream.mjpg")
 def stream_laptop_cctv():

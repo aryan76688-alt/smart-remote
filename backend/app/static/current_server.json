@@ -1,7 +1,8 @@
 {
   "local": "http://127.0.0.1:7070",
   "tailscale": "http://100.69.194.11:7070",
-  "cloudflare_tunnel": "https://michigan-began-other-hypothesis.trycloudflare.com",
-  "worker_url": "https://smart-remote.aryan76688.workers.dev",
-  "updated_at": "2026-11-17T23:15:00Z"
+  "cloudflare_url": "https://trustees-assessment-parental-antique.trycloudflare.com",
+  "workers_dev_url": "https://smart-remote.aryan76688.workers.dev",
+  "tunnel_status": "active",
+  "updated_at": "2026-11-18T03:34:45Z"
 }

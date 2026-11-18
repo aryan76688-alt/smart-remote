@@ -1,22 +1,34 @@
 import os
 from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from .core.config import settings
+from .core.tunnel import tunnel_manager
 from .api.system import router as system_router
 from .api.remote import router as remote_router
 from .api.cctv import router as cctv_router
 from .api.maps import router as maps_router
 from .api.ai import router as ai_router
 from .api.files import router as files_router
+from .api.companion import router as companion_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Launch persistent Cloudflare Tunnel & Worker Edge Hub sync on boot
+    tunnel_manager.start()
+    yield
+    # Gracefully stop tunnel on shutdown
+    tunnel_manager.stop()
 
 app = FastAPI(
     title="pearOS Nexus Smart Remote",
     description="Next-Generation pearOS Remote Command Deck & Companion Service",
-    version="3.0.0"
+    version="3.0.0",
+    lifespan=lifespan
 )
 
 # Enable CORS for local & Cloudflare tunnel access
@@ -35,6 +47,7 @@ app.include_router(cctv_router)
 app.include_router(maps_router)
 app.include_router(ai_router)
 app.include_router(files_router)
+app.include_router(companion_router)
 
 # Mount Static UI
 static_dir = Path(__file__).resolve().parent / "static"
@@ -50,17 +63,15 @@ def health_check():
     return {
         "status": "healthy",
         "system": "pearOS Nexus 3.0",
-        "tunnel_active": True
+        "tunnel": tunnel_manager.get_status()
     }
 
 # Fallback route for SPA
 @app.get("/{full_path:path}")
 def serve_spa(full_path: str):
-    # If file exists in static_dir, serve it
     file_path = static_dir / full_path
     if full_path and file_path.is_file():
         return FileResponse(file_path)
-    # Otherwise fallback to index.html
     index_path = static_dir / "index.html"
     if index_path.exists():
         return FileResponse(index_path)
