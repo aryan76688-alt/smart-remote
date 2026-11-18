@@ -47,21 +47,21 @@ export const SystemCockpitView: React.FC = () => {
   return (
     <div className="w-full h-full px-3 pb-6 overflow-y-auto flex flex-col items-center">
       <div className="w-full max-w-md flex flex-col gap-3">
-        {/* 3 Luminous Hardware Gauges */}
+        {/* 3 Crisp Light Hardware Gauges */}
         <div className="grid grid-cols-3 gap-2.5">
           <div className="liquid-glass rounded-2xl p-3 flex flex-col items-center">
-            <Cpu size={18} className="text-stitch-primary mb-1" />
-            <span className="font-mono text-[9px] uppercase text-stitch-outline">CPU</span>
+            <Cpu size={18} className="text-stitch-primaryStrong mb-1" />
+            <span className="font-mono text-[9px] uppercase text-stitch-outline font-semibold">CPU</span>
             <span className="font-mono text-lg font-bold text-stitch-text">{telemetry.cpu_usage}%</span>
           </div>
           <div className="liquid-glass rounded-2xl p-3 flex flex-col items-center">
             <HardDrive size={18} className="text-stitch-tertiary mb-1" />
-            <span className="font-mono text-[9px] uppercase text-stitch-outline">RAM</span>
+            <span className="font-mono text-[9px] uppercase text-stitch-outline font-semibold">RAM</span>
             <span className="font-mono text-lg font-bold text-stitch-text">{telemetry.ram_usage}%</span>
           </div>
           <div className="liquid-glass rounded-2xl p-3 flex flex-col items-center">
-            <Thermometer size={18} className="text-amber-300 mb-1" />
-            <span className="font-mono text-[9px] uppercase text-stitch-outline">TEMP</span>
+            <Thermometer size={18} className="text-amber-600 mb-1" />
+            <span className="font-mono text-[9px] uppercase text-stitch-outline font-semibold">TEMP</span>
             <span className="font-mono text-lg font-bold text-stitch-text">{telemetry.temperature_c}°C</span>
           </div>
         </div>
@@ -69,7 +69,7 @@ export const SystemCockpitView: React.FC = () => {
         {/* Sliders */}
         <div className="liquid-glass rounded-2xl p-3.5 flex flex-col gap-3">
           <div className="flex items-center gap-3">
-            <Volume2 size={17} className="text-stitch-primary" />
+            <Volume2 size={17} className="text-stitch-primaryStrong" />
             <input
               type="range"
               min="0"
@@ -80,12 +80,12 @@ export const SystemCockpitView: React.FC = () => {
                 setVolume(v);
                 api.setVolume(v);
               }}
-              className="flex-1 accent-[#3e90ff]"
+              className="flex-1 accent-[#007AFF]"
             />
-            <span className="font-mono text-xs text-stitch-text w-9 text-right">{volume}%</span>
+            <span className="font-mono text-xs font-semibold text-stitch-text w-9 text-right">{volume}%</span>
           </div>
           <div className="flex items-center gap-3">
-            <Sun size={17} className="text-amber-300" />
+            <Sun size={17} className="text-amber-600" />
             <input
               type="range"
               min="10"
@@ -96,9 +96,9 @@ export const SystemCockpitView: React.FC = () => {
                 setBrightness(v);
                 api.setBrightness(v);
               }}
-              className="flex-1 accent-[#fbbf24]"
+              className="flex-1 accent-[#f59e0b]"
             />
-            <span className="font-mono text-xs text-stitch-text w-9 text-right">{brightness}%</span>
+            <span className="font-mono text-xs font-semibold text-stitch-text w-9 text-right">{brightness}%</span>
           </div>
         </div>
 
@@ -119,7 +119,7 @@ export const SystemCockpitView: React.FC = () => {
             type="button"
             disabled={speedtesting}
             onClick={handleRunSpeedtest}
-            className="px-3.5 py-2 rounded-xl bg-stitch-primaryStrong/80 text-white text-xs font-semibold shadow-[0_0_15px_rgba(62,144,255,0.4)] active:scale-95"
+            className="px-3.5 py-2 rounded-xl bg-stitch-primaryStrong text-white text-xs font-semibold shadow-[0_4px_14px_rgba(0,122,255,0.35)] active:scale-95"
           >
             {speedtesting ? 'Testing...' : 'Run'}
           </button>
@@ -127,19 +127,19 @@ export const SystemCockpitView: React.FC = () => {
 
         {/* Process Hunter */}
         <div className="liquid-glass rounded-2xl p-3.5 flex flex-col gap-2">
-          <div className="flex items-center justify-between pb-1 border-b border-white/10">
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-900/10">
             <h4 className="font-display text-xs font-bold text-stitch-text flex items-center gap-1.5">
               <Activity size={14} className="text-stitch-error" />
               <span>Process Hunter</span>
             </h4>
-            <span className="font-mono text-[9px] text-stitch-outline">STOP / CONT / KILL</span>
+            <span className="font-mono text-[9px] text-stitch-outline font-semibold">STOP / CONT / KILL</span>
           </div>
           <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto">
             {processes.slice(0, 7).map((p) => (
               <div key={p.pid} className="liquid-glass-deep rounded-xl px-2.5 py-2 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-mono text-[10px] text-stitch-outline">#{p.pid}</span>
-                  <span className="font-medium text-stitch-text truncate max-w-[125px]">{p.name}</span>
+                  <span className="font-semibold text-stitch-text truncate max-w-[125px]">{p.name}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono text-[11px] font-bold text-stitch-primary">{p.cpu}%</span>
@@ -147,7 +147,7 @@ export const SystemCockpitView: React.FC = () => {
                     type="button"
                     aria-label={`Freeze ${p.name}`}
                     onClick={async () => { await api.sendProcessSignal(p.pid, 'STOP'); refreshTelemetry(); }}
-                    className="w-7 h-7 rounded-lg liquid-btn flex items-center justify-center text-amber-300"
+                    className="w-7 h-7 rounded-lg liquid-btn flex items-center justify-center text-amber-600"
                   >
                     <Pause size={12} />
                   </button>
@@ -175,7 +175,7 @@ export const SystemCockpitView: React.FC = () => {
 
         {/* Clipboard History */}
         <div className="liquid-glass rounded-2xl p-3.5 flex flex-col gap-2">
-          <h4 className="font-display text-xs font-bold text-stitch-text flex items-center gap-1.5 pb-1 border-b border-white/10">
+          <h4 className="font-display text-xs font-bold text-stitch-text flex items-center gap-1.5 pb-1.5 border-b border-slate-900/10">
             <Clipboard size={14} className="text-stitch-tertiary" />
             <span>Universal Clipboard Stack</span>
           </h4>
@@ -185,7 +185,7 @@ export const SystemCockpitView: React.FC = () => {
                 key={clip.id}
                 type="button"
                 onClick={() => api.typeText(clip.text)}
-                className="liquid-glass-deep rounded-xl p-2.5 flex items-center justify-between text-left hover:bg-white/10 active:scale-[0.99] transition-all"
+                className="liquid-glass-deep rounded-xl p-2.5 flex items-center justify-between text-left hover:bg-white/75 active:scale-[0.99] transition-all"
               >
                 <span className="font-mono text-xs text-stitch-text truncate max-w-[230px]">{clip.text}</span>
                 <span className="font-mono text-[10px] text-stitch-outline shrink-0 ml-2">{clip.time}</span>

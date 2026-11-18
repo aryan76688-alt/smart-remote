@@ -56,11 +56,11 @@ export const TrackpadView: React.FC = () => {
               onClick={() => setGyroActive(!gyroActive)}
               className={`min-h-[40px] px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
                 gyroActive
-                  ? 'bg-stitch-primaryStrong/35 border-stitch-primary/60 text-stitch-primary shadow-[0_0_16px_rgba(62,144,255,0.4)]'
+                  ? 'bg-stitch-primaryStrong text-white border-blue-400 shadow-[0_4px_14px_rgba(0,122,255,0.35)]'
                   : 'liquid-btn text-stitch-text'
               }`}
             >
-              <Compass size={14} className={gyroActive ? 'animate-spin' : ''} />
+              <Compass size={14} className={gyroActive ? 'animate-spin' : 'text-stitch-primaryStrong'} />
               <span>{gyroActive ? 'Gyro Live' : 'Air Mouse'}</span>
             </button>
             <button
@@ -68,11 +68,11 @@ export const TrackpadView: React.FC = () => {
               onClick={() => setShowKeyboard(!showKeyboard)}
               className={`min-h-[40px] px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
                 showKeyboard
-                  ? 'bg-stitch-tertiaryStrong/35 border-stitch-tertiary/60 text-stitch-tertiary shadow-[0_0_16px_rgba(200,99,251,0.4)]'
+                  ? 'bg-stitch-tertiaryStrong text-white border-purple-400 shadow-[0_4px_14px_rgba(147,51,234,0.35)]'
                   : 'liquid-btn text-stitch-text'
               }`}
             >
-              <Keyboard size={14} />
+              <Keyboard size={14} className={showKeyboard ? '' : 'text-stitch-tertiary'} />
               <span>Type</span>
             </button>
           </div>
@@ -89,7 +89,7 @@ export const TrackpadView: React.FC = () => {
                 type="button"
                 aria-label={`Arrow ${key}`}
                 onClick={() => api.sendShortcut(key)}
-                className="w-9 h-9 liquid-btn rounded-xl flex items-center justify-center text-stitch-muted hover:text-white"
+                className="w-9 h-9 liquid-btn rounded-xl flex items-center justify-center text-stitch-muted hover:text-stitch-text"
               >
                 <Icon size={14} />
               </button>
@@ -105,12 +105,12 @@ export const TrackpadView: React.FC = () => {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Send text to pearOS cursor..."
-              className="flex-1 liquid-glass-deep px-3 py-2 rounded-xl text-xs text-stitch-text placeholder:text-stitch-outline focus:outline-none focus:border-stitch-primary/60"
+              className="flex-1 bg-white/80 border border-slate-900/10 px-3 py-2 rounded-xl text-xs text-stitch-text placeholder:text-stitch-outline focus:outline-none focus:border-stitch-primaryStrong"
               autoFocus
             />
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-stitch-primaryStrong/80 hover:bg-stitch-primaryStrong text-white text-xs font-semibold flex items-center gap-1 shadow-[0_0_15px_rgba(62,144,255,0.4)]"
+              className="px-4 py-2 rounded-xl bg-stitch-primaryStrong hover:bg-blue-600 text-white text-xs font-semibold flex items-center gap-1 shadow-[0_4px_14px_rgba(0,122,255,0.35)]"
             >
               <span>Send</span>
               <CornerDownLeft size={13} />
@@ -118,19 +118,19 @@ export const TrackpadView: React.FC = () => {
           </form>
         )}
 
-        {/* Transparent Crystal Trackpad Surface */}
+        {/* Transparent Light Crystal Trackpad Surface */}
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onClick={() => api.clickMouse(1)}
-          className="flex-1 liquid-glass rounded-3xl relative flex flex-col items-center justify-center cursor-crosshair active:bg-white/15 transition-colors overflow-hidden"
+          className="flex-1 liquid-glass rounded-3xl relative flex flex-col items-center justify-center cursor-crosshair active:bg-white/75 transition-colors overflow-hidden"
         >
-          <div className="pointer-events-none flex flex-col items-center gap-2 opacity-60">
-            <div className="w-14 h-14 rounded-full liquid-glass-deep flex items-center justify-center text-stitch-primary">
+          <div className="pointer-events-none flex flex-col items-center gap-2 opacity-75">
+            <div className="w-14 h-14 rounded-full bg-white/80 border border-white shadow-sm flex items-center justify-center text-stitch-primaryStrong">
               <MousePointer size={24} />
             </div>
-            <span className="font-display text-xs uppercase tracking-[0.2em] text-stitch-text font-semibold">
+            <span className="font-display text-xs uppercase tracking-[0.2em] text-stitch-text font-bold">
               Liquid Glass Trackpad
             </span>
             <span className="font-mono text-[10px] text-stitch-muted">
@@ -138,7 +138,7 @@ export const TrackpadView: React.FC = () => {
             </span>
           </div>
 
-          {/* Transparent Vertical Scroll Strip */}
+          {/* Light Transparent Vertical Scroll Strip */}
           <div
             onTouchMove={(e) => {
               e.stopPropagation();
@@ -147,24 +147,24 @@ export const TrackpadView: React.FC = () => {
             className="absolute right-2.5 top-5 bottom-5 w-7 liquid-glass-deep rounded-full flex flex-col items-center justify-between py-3 text-stitch-outline"
           >
             <ArrowUp size={12} />
-            <span className="font-mono text-[8px] tracking-widest rotate-90 text-stitch-primary">SCROLL</span>
+            <span className="font-mono text-[8px] font-bold tracking-widest rotate-90 text-stitch-primary">SCROLL</span>
             <ArrowDown size={12} />
           </div>
         </div>
 
-        {/* Tactile Transparent Click Buttons */}
+        {/* Tactile Light Click Buttons */}
         <div className="grid grid-cols-2 gap-3 h-14">
           <button
             type="button"
             onClick={() => api.clickMouse(1)}
-            className="liquid-glass rounded-2xl flex items-center justify-center font-display text-xs font-bold tracking-wide text-stitch-text active:bg-stitch-primaryStrong/40 active:scale-[0.97] transition-all"
+            className="liquid-glass rounded-2xl flex items-center justify-center font-display text-xs font-bold tracking-wide text-stitch-text active:bg-stitch-primaryStrong active:text-white active:scale-[0.97] transition-all"
           >
             Left Click
           </button>
           <button
             type="button"
             onClick={() => api.clickMouse(3)}
-            className="liquid-glass rounded-2xl flex items-center justify-center font-display text-xs font-bold tracking-wide text-stitch-text active:bg-stitch-tertiaryStrong/40 active:scale-[0.97] transition-all"
+            className="liquid-glass rounded-2xl flex items-center justify-center font-display text-xs font-bold tracking-wide text-stitch-text active:bg-stitch-tertiaryStrong active:text-white active:scale-[0.97] transition-all"
           >
             Right Click
           </button>

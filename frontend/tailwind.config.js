@@ -1,6 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -9,23 +8,23 @@ export default {
     extend: {
       colors: {
         stitch: {
-          bg: '#0b0e18',
-          surface: '#11131d',
-          container: '#1d1f2a',
-          high: '#272935',
-          highest: '#323440',
-          primary: '#aac7ff',
-          primaryStrong: '#3e90ff',
-          secondary: '#47e266',
-          secondaryStrong: '#09bf49',
-          tertiary: '#e9b3ff',
-          tertiaryStrong: '#c863fb',
-          error: '#ffb4ab',
-          errorStrong: '#ff3b30',
-          errorContainer: '#93000a',
-          text: '#e1e1f1',
-          muted: '#c0c6d6',
-          outline: '#8b91a0',
+          bg: '#eef3fb',
+          surface: '#f5f8fd',
+          container: '#ffffff',
+          high: '#f1f5f9',
+          highest: '#e2e8f0',
+          primary: '#0062cc',
+          primaryStrong: '#007AFF',
+          secondary: '#15803d',
+          secondaryStrong: '#22c55e',
+          tertiary: '#7e22ce',
+          tertiaryStrong: '#9333ea',
+          error: '#dc2626',
+          errorStrong: '#ef4444',
+          errorContainer: '#fee2e2',
+          text: '#0f172a',
+          muted: '#475569',
+          outline: '#64748b',
         }
       },
       fontFamily: {

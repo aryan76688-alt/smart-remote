@@ -41,28 +41,28 @@ export const DynamicIsland: React.FC = () => {
     };
   }, []);
 
-  // Landscape StandBy Crystal Clock Mode
+  // Landscape Light StandBy Crystal Clock Mode
   if (isLandscape) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#0b0e18]/95 backdrop-blur-3xl text-stitch-text flex items-center justify-around p-8 select-none">
+      <div className="fixed inset-0 z-50 bg-[#eef3fb]/90 backdrop-blur-3xl text-stitch-text flex items-center justify-around p-8 select-none">
         <div className="flex flex-col items-center">
-          <span className="text-8xl font-display font-bold tracking-tighter text-stitch-primary drop-shadow-[0_0_30px_rgba(62,144,255,0.45)] font-mono">
+          <span className="text-8xl font-display font-bold tracking-tighter text-stitch-primaryStrong font-mono">
             {currentTime}
           </span>
           <span className="text-xs uppercase tracking-[0.25em] text-stitch-muted mt-2">
-            pearOS Liquid StandBy
+            pearOS Light StandBy
           </span>
         </div>
         <div className="liquid-glass p-6 rounded-3xl w-80 flex flex-col gap-4">
           <div className="flex justify-between items-center text-sm">
             <span className="text-stitch-muted flex items-center gap-2">
-              <Cpu size={16} className="text-stitch-primary" /> CPU Core
+              <Cpu size={16} className="text-stitch-primaryStrong" /> CPU Core
             </span>
             <span className="font-mono font-semibold text-stitch-primary">{status.cpu_percent}%</span>
           </div>
-          <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+          <div className="w-full bg-slate-900/10 h-2 rounded-full overflow-hidden">
             <div
-              className="bg-gradient-to-r from-stitch-primaryStrong to-stitch-primary h-full transition-all duration-500"
+              className="bg-gradient-to-r from-stitch-primaryStrong to-sky-400 h-full transition-all duration-500"
               style={{ width: `${Math.min(100, status.cpu_percent)}%` }}
             />
           </div>
@@ -72,9 +72,9 @@ export const DynamicIsland: React.FC = () => {
             </span>
             <span className="font-mono font-semibold text-stitch-tertiary">{status.memory_percent}%</span>
           </div>
-          <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+          <div className="w-full bg-slate-900/10 h-2 rounded-full overflow-hidden">
             <div
-              className="bg-gradient-to-r from-stitch-tertiaryStrong to-stitch-tertiary h-full transition-all duration-500"
+              className="bg-gradient-to-r from-stitch-tertiaryStrong to-purple-400 h-full transition-all duration-500"
               style={{ width: `${Math.min(100, status.memory_percent)}%` }}
             />
           </div>
@@ -94,16 +94,16 @@ export const DynamicIsland: React.FC = () => {
         >
           {/* Left: pearOS Core Status */}
           <div className="flex items-center gap-2 pl-0.5">
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white/10 border border-white/15 text-stitch-primary">
+            <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white/80 border border-slate-900/10 shadow-sm">
               <span className="text-sm">🍐</span>
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-stitch-secondary shadow-[0_0_10px_#47e266] animate-ping" />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-stitch-secondary" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-stitch-secondaryStrong shadow-[0_0_8px_#22c55e] animate-ping" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-stitch-secondaryStrong" />
             </div>
             <div className="flex flex-col text-left">
               <span className="font-display text-xs font-bold text-stitch-text tracking-tight leading-tight">
                 pearOS Nexus
               </span>
-              <span className="font-mono text-[9px] text-stitch-secondary tracking-widest uppercase">
+              <span className="font-mono text-[9px] text-stitch-secondary font-semibold tracking-widest uppercase">
                 Core Synced
               </span>
             </div>
@@ -113,20 +113,20 @@ export const DynamicIsland: React.FC = () => {
           <div className="flex items-center gap-1.5 pr-0.5">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full liquid-glass-deep">
               <span className="font-mono text-[9px] text-stitch-outline">CPU</span>
-              <div className="w-6 h-1.5 bg-white/10 rounded-full overflow-hidden hidden sm:block">
-                <div className="h-full bg-stitch-primary rounded-full" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
+              <div className="w-6 h-1.5 bg-slate-900/10 rounded-full overflow-hidden hidden sm:block">
+                <div className="h-full bg-stitch-primaryStrong rounded-full" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
               </div>
-              <span className="font-mono text-[10px] font-semibold text-stitch-primary">{status.cpu_percent}%</span>
+              <span className="font-mono text-[10px] font-bold text-stitch-primary">{status.cpu_percent}%</span>
             </div>
 
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full liquid-glass-deep">
               <span className="font-mono text-[9px] text-stitch-outline">RAM</span>
-              <span className="font-mono text-[10px] font-semibold text-stitch-tertiary">{status.memory_percent}%</span>
+              <span className="font-mono text-[10px] font-bold text-stitch-tertiary">{status.memory_percent}%</span>
             </div>
 
-            <div className="flex items-center gap-0.5 px-2 py-1 rounded-full bg-stitch-secondaryStrong/20 border border-stitch-secondary/30 text-stitch-secondary">
+            <div className="flex items-center gap-0.5 px-2 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-stitch-secondary">
               <Zap size={11} className="animate-pulse" />
-              <span className="font-mono text-[10px] font-semibold">
+              <span className="font-mono text-[10px] font-bold">
                 {status.battery_percent > 0 ? `${status.battery_percent}%` : 'AC'}
               </span>
             </div>
@@ -134,10 +134,10 @@ export const DynamicIsland: React.FC = () => {
         </button>
       ) : (
         <div className="w-full max-w-md liquid-glass rounded-3xl p-4 animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-900/10">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-stitch-secondary shadow-[0_0_10px_#47e266]" />
-              <span className="font-display font-bold text-sm text-stitch-text">pearOS Nexus 4.0 Glass</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-stitch-secondaryStrong shadow-[0_0_8px_#22c55e]" />
+              <span className="font-display font-bold text-sm text-stitch-text">pearOS Nexus 4.0 Light Glass</span>
             </div>
             <button
               type="button"
@@ -153,14 +153,14 @@ export const DynamicIsland: React.FC = () => {
             <div className="liquid-glass-deep p-3 rounded-2xl">
               <span className="text-[10px] font-mono uppercase text-stitch-outline block">CPU Load</span>
               <span className="text-2xl font-bold font-mono text-stitch-primary">{status.cpu_percent}%</span>
-              <div className="w-full bg-white/10 h-1.5 rounded-full mt-2 overflow-hidden">
+              <div className="w-full bg-slate-900/10 h-1.5 rounded-full mt-2 overflow-hidden">
                 <div className="bg-stitch-primaryStrong h-full rounded-full" style={{ width: `${Math.min(100, status.cpu_percent)}%` }} />
               </div>
             </div>
             <div className="liquid-glass-deep p-3 rounded-2xl">
               <span className="text-[10px] font-mono uppercase text-stitch-outline block">RAM Usage</span>
               <span className="text-2xl font-bold font-mono text-stitch-tertiary">{status.memory_percent}%</span>
-              <div className="w-full bg-white/10 h-1.5 rounded-full mt-2 overflow-hidden">
+              <div className="w-full bg-slate-900/10 h-1.5 rounded-full mt-2 overflow-hidden">
                 <div className="bg-stitch-tertiaryStrong h-full rounded-full" style={{ width: `${Math.min(100, status.memory_percent)}%` }} />
               </div>
             </div>
@@ -175,8 +175,8 @@ export const DynamicIsland: React.FC = () => {
               }}
               className="liquid-btn rounded-2xl py-2.5 flex flex-col items-center gap-1"
             >
-              <Lock size={16} className="text-stitch-primary" />
-              <span className="text-[11px] font-medium text-stitch-text">Lock PC</span>
+              <Lock size={16} className="text-stitch-primaryStrong" />
+              <span className="text-[11px] font-semibold text-stitch-text">Lock PC</span>
             </button>
             <button
               type="button"
@@ -187,7 +187,7 @@ export const DynamicIsland: React.FC = () => {
               className="liquid-btn rounded-2xl py-2.5 flex flex-col items-center gap-1"
             >
               <RefreshCw size={16} className="text-stitch-secondary" />
-              <span className="text-[11px] font-medium text-stitch-text">Purge RAM</span>
+              <span className="text-[11px] font-semibold text-stitch-text">Purge RAM</span>
             </button>
             <button
               type="button"
@@ -197,7 +197,7 @@ export const DynamicIsland: React.FC = () => {
               className="liquid-btn rounded-2xl py-2.5 flex flex-col items-center gap-1"
             >
               <VolumeX size={16} className="text-stitch-error" />
-              <span className="text-[11px] font-medium text-stitch-text">Mute</span>
+              <span className="text-[11px] font-semibold text-stitch-text">Mute</span>
             </button>
           </div>
         </div>

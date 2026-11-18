@@ -3,10 +3,10 @@ import { Play, VolumeX, Camera, Terminal, Lock } from 'lucide-react';
 import { api } from '../services/api';
 
 const TOUCHBAR_ACTIONS = [
-  { id: 'media_play', label: 'Play', icon: Play, colorClass: 'text-stitch-primary' },
+  { id: 'media_play', label: 'Play', icon: Play, colorClass: 'text-stitch-primaryStrong' },
   { id: 'media_mute', label: 'Audio', icon: VolumeX, colorClass: 'text-stitch-tertiary' },
   { id: 'key_print', label: 'Snapshot', icon: Camera, colorClass: 'text-stitch-secondary' },
-  { id: 'launch_terminal', label: 'Console', icon: Terminal, colorClass: 'text-sky-300' },
+  { id: 'launch_terminal', label: 'Console', icon: Terminal, colorClass: 'text-sky-600' },
   { id: 'lock_screen', label: 'Lock', icon: Lock, colorClass: 'text-stitch-error' },
 ];
 
@@ -28,7 +28,7 @@ export const TouchBar: React.FC = () => {
             className="flex-1 min-h-[44px] py-1.5 px-1 rounded-xl liquid-btn flex flex-col items-center justify-center gap-0.5"
           >
             <Icon size={17} className={colorClass} />
-            <span className="text-[10px] font-medium text-stitch-text/90 tracking-tight">{label}</span>
+            <span className="text-[10px] font-semibold text-stitch-text tracking-tight">{label}</span>
           </button>
         ))}
       </div>

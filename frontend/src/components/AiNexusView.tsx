@@ -9,7 +9,7 @@ export const AiNexusView: React.FC = () => {
   const [visionQuery, setVisionQuery] = useState('Analyze active pearOS display and CCTV perimeter');
   const [visionResult, setVisionResult] = useState<any>(null);
   const [replLang, setReplLang] = useState<'python' | 'bash'>('python');
-  const [replCode, setReplCode] = useState('print("pearOS Nexus 4.0 Liquid Glass REPL Ready")');
+  const [replCode, setReplCode] = useState('print("pearOS Nexus 4.0 Light Liquid Glass REPL Ready")');
   const [replResult, setReplResult] = useState<any>(null);
   const [meetingText, setMeetingText] = useState('Verify 30-minute CCTV background recording and mobile lockscreen continuity.');
   const [meetingResult, setMeetingResult] = useState<any>(null);
@@ -23,20 +23,20 @@ export const AiNexusView: React.FC = () => {
   return (
     <div className="w-full h-full px-3 pb-4 flex flex-col items-center overflow-y-auto">
       <div className="w-full max-w-md flex flex-col gap-3">
-        {/* Agent Switcher */}
+        {/* Light Agent Switcher */}
         <div className="grid grid-cols-4 gap-1.5 liquid-glass rounded-2xl p-1.5">
           {[
-            { id: 'terminal', label: 'Terminal', icon: Terminal, active: 'bg-stitch-primaryStrong/35 border-stitch-primary/50 text-stitch-primary' },
-            { id: 'vision', label: 'Vision', icon: Eye, active: 'bg-stitch-tertiaryStrong/35 border-stitch-tertiary/50 text-stitch-tertiary' },
-            { id: 'code', label: 'REPL', icon: Code, active: 'bg-stitch-secondaryStrong/35 border-stitch-secondary/50 text-stitch-secondary' },
-            { id: 'meeting', label: 'Notes', icon: Mic, active: 'bg-amber-500/35 border-amber-300/50 text-amber-200' },
+            { id: 'terminal', label: 'Terminal', icon: Terminal, active: 'bg-stitch-primaryStrong text-white shadow-sm' },
+            { id: 'vision', label: 'Vision', icon: Eye, active: 'bg-stitch-tertiaryStrong text-white shadow-sm' },
+            { id: 'code', label: 'REPL', icon: Code, active: 'bg-stitch-secondaryStrong text-white shadow-sm' },
+            { id: 'meeting', label: 'Notes', icon: Mic, active: 'bg-amber-500 text-white shadow-sm' },
           ].map(({ id, label, icon: Icon, active }) => (
             <button
               key={id}
               type="button"
               onClick={() => setActiveTab(id as any)}
-              className={`min-h-[48px] py-2 rounded-xl text-[11px] font-semibold flex flex-col items-center justify-center gap-1 border transition-all ${
-                activeTab === id ? active : 'border-transparent text-stitch-muted hover:bg-white/5'
+              className={`min-h-[48px] py-2 rounded-xl text-[11px] font-semibold flex flex-col items-center justify-center gap-1 transition-all ${
+                activeTab === id ? active : 'text-stitch-muted hover:bg-white/60'
               }`}
             >
               <Icon size={16} />
@@ -45,37 +45,39 @@ export const AiNexusView: React.FC = () => {
           ))}
         </div>
 
-        {/* Agent Glass Card */}
+        {/* Light Crystal Agent Card */}
         <div className="liquid-glass rounded-3xl p-4 flex flex-col gap-3.5">
           {activeTab === 'terminal' && (
             <>
               <div className="flex items-center gap-2">
-                <Bot size={18} className="text-stitch-primary" />
+                <Bot size={18} className="text-stitch-primaryStrong" />
                 <h3 className="font-display font-bold text-sm text-stitch-text">Terminal Pilot Agent</h3>
               </div>
               <textarea
                 value={terminalHistory}
                 onChange={(e) => setTerminalHistory(e.target.value)}
                 rows={4}
-                className="liquid-glass-deep rounded-2xl p-3 text-xs font-mono text-stitch-text focus:outline-none focus:border-stitch-primary/60"
+                className="bg-white/75 border border-slate-900/10 rounded-2xl p-3 text-xs font-mono text-stitch-text focus:outline-none focus:border-stitch-primaryStrong"
               />
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => runAction(async () => setTerminalResult(await api.predictTerminal(terminalHistory)))}
-                className="w-full min-h-[44px] rounded-2xl bg-stitch-primaryStrong/80 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(62,144,255,0.4)] active:scale-95"
+                className="w-full min-h-[44px] rounded-2xl bg-stitch-primaryStrong text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_6px_18px_rgba(0,122,255,0.32)] active:scale-95"
               >
                 <Sparkles size={14} />
                 <span>{loading ? 'Analyzing...' : 'Predict Fix / Command'}</span>
               </button>
               {terminalResult && (
                 <div className="liquid-glass-deep rounded-2xl p-3.5 flex flex-col gap-2">
-                  <code className="text-xs font-mono text-stitch-secondary">{terminalResult.predicted_command}</code>
+                  <code className="text-xs font-mono font-semibold text-stitch-primary bg-white/80 p-2 rounded-xl border border-slate-900/10">
+                    {terminalResult.predicted_command}
+                  </code>
                   <p className="text-[11px] text-stitch-muted">{terminalResult.reasoning}</p>
                   <button
                     type="button"
                     onClick={() => api.typeText(terminalResult.predicted_command)}
-                    className="py-2 rounded-xl bg-stitch-secondaryStrong/70 text-white text-xs font-semibold flex items-center justify-center gap-1.5"
+                    className="py-2 rounded-xl bg-stitch-secondaryStrong text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm"
                   >
                     <Send size={12} />
                     <span>Type Into pearOS</span>
@@ -95,13 +97,13 @@ export const AiNexusView: React.FC = () => {
                 type="text"
                 value={visionQuery}
                 onChange={(e) => setVisionQuery(e.target.value)}
-                className="liquid-glass-deep rounded-2xl p-3 text-xs text-stitch-text focus:outline-none focus:border-stitch-tertiary/60"
+                className="bg-white/75 border border-slate-900/10 rounded-2xl p-3 text-xs text-stitch-text focus:outline-none focus:border-stitch-tertiaryStrong"
               />
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => runAction(async () => setVisionResult(await api.explainVision(visionQuery)))}
-                className="w-full min-h-[44px] rounded-2xl bg-stitch-tertiaryStrong/80 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(200,99,251,0.4)] active:scale-95"
+                className="w-full min-h-[44px] rounded-2xl bg-stitch-tertiaryStrong text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_6px_18px_rgba(147,51,234,0.32)] active:scale-95"
               >
                 <Sparkles size={14} />
                 <span>{loading ? 'Inspecting...' : 'Analyze Display / CCTV'}</span>
@@ -109,7 +111,7 @@ export const AiNexusView: React.FC = () => {
               {visionResult && (
                 <div className="liquid-glass-deep rounded-2xl p-3.5 flex flex-col gap-2">
                   <p className="text-xs text-stitch-text leading-relaxed">{visionResult.explanation}</p>
-                  <span className="text-[11px] font-mono text-stitch-secondary flex items-center gap-1">
+                  <span className="text-[11px] font-mono font-semibold text-stitch-secondary flex items-center gap-1">
                     <CheckCircle2 size={13} /> Confidence {(visionResult.confidence * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -131,7 +133,7 @@ export const AiNexusView: React.FC = () => {
                       type="button"
                       onClick={() => setReplLang(lang)}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase ${
-                        replLang === lang ? 'bg-stitch-secondaryStrong/40 text-stitch-secondary' : 'text-stitch-outline'
+                        replLang === lang ? 'bg-stitch-secondaryStrong text-white shadow-xs' : 'text-stitch-muted'
                       }`}
                     >
                       {lang}
@@ -143,21 +145,21 @@ export const AiNexusView: React.FC = () => {
                 value={replCode}
                 onChange={(e) => setReplCode(e.target.value)}
                 rows={4}
-                className="liquid-glass-deep rounded-2xl p-3 text-xs font-mono text-stitch-primary focus:outline-none focus:border-stitch-secondary/60"
+                className="bg-white/80 border border-slate-900/10 rounded-2xl p-3 text-xs font-mono text-stitch-primary focus:outline-none focus:border-stitch-secondaryStrong"
               />
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => runAction(async () => setReplResult(await api.runCodeRepl(replLang, replCode)))}
-                className="w-full min-h-[44px] rounded-2xl bg-stitch-secondaryStrong/80 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(9,191,73,0.4)] active:scale-95"
+                className="w-full min-h-[44px] rounded-2xl bg-stitch-secondaryStrong text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_6px_18px_rgba(34,197,94,0.32)] active:scale-95"
               >
                 <Play size={14} />
                 <span>{loading ? 'Running...' : 'Execute in RAM'}</span>
               </button>
               {replResult && (
-                <div className="liquid-glass-deep rounded-2xl p-3 font-mono text-xs overflow-x-auto max-h-40">
+                <div className="bg-white/80 border border-slate-900/10 rounded-2xl p-3 font-mono text-xs overflow-x-auto max-h-40">
                   <span className="text-[10px] text-stitch-outline block mb-1">STDOUT ({replResult.execution_ms}ms)</span>
-                  <pre className="text-stitch-secondary whitespace-pre-wrap">{replResult.output}</pre>
+                  <pre className="text-stitch-secondary font-semibold whitespace-pre-wrap">{replResult.output}</pre>
                 </div>
               )}
             </>
@@ -166,20 +168,20 @@ export const AiNexusView: React.FC = () => {
           {activeTab === 'meeting' && (
             <>
               <div className="flex items-center gap-2">
-                <Mic size={18} className="text-amber-300" />
+                <Mic size={18} className="text-amber-600" />
                 <h3 className="font-display font-bold text-sm text-stitch-text">Meeting Transcriber</h3>
               </div>
               <textarea
                 value={meetingText}
                 onChange={(e) => setMeetingText(e.target.value)}
                 rows={3}
-                className="liquid-glass-deep rounded-2xl p-3 text-xs text-stitch-text focus:outline-none focus:border-amber-300/60"
+                className="bg-white/75 border border-slate-900/10 rounded-2xl p-3 text-xs text-stitch-text focus:outline-none focus:border-amber-500"
               />
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => runAction(async () => setMeetingResult(await api.transcribeMeeting(meetingText)))}
-                className="w-full min-h-[44px] rounded-2xl bg-amber-500/80 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_0_18px_rgba(245,158,11,0.35)] active:scale-95"
+                className="w-full min-h-[44px] rounded-2xl bg-amber-500 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-[0_6px_18px_rgba(245,158,11,0.32)] active:scale-95"
               >
                 <Sparkles size={14} />
                 <span>{loading ? 'Structuring...' : 'Extract Action Items'}</span>
@@ -189,7 +191,7 @@ export const AiNexusView: React.FC = () => {
                   <h4 className="text-xs font-bold text-stitch-text">{meetingResult.summary}</h4>
                   {meetingResult.action_items.map((item: string, i: number) => (
                     <div key={i} className="text-xs text-stitch-muted flex gap-2">
-                      <span className="text-amber-300">•</span>
+                      <span className="text-amber-600 font-bold">•</span>
                       <span>{item}</span>
                     </div>
                   ))}

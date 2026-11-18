@@ -44,28 +44,28 @@ export const FileDropView: React.FC = () => {
               onClick={() => loadDirectory(parentPath)}
               disabled={currentPath === '/home/aryan'}
               aria-label="Go up directory"
-              className="w-9 h-9 rounded-xl liquid-btn flex items-center justify-center text-stitch-text disabled:opacity-30 shrink-0"
+              className="w-9 h-9 rounded-xl liquid-btn flex items-center justify-center text-stitch-text disabled:opacity-35 shrink-0"
             >
               <ArrowLeft size={15} />
             </button>
             <div className="flex items-center gap-1.5 font-mono text-xs text-stitch-text truncate">
-              <HardDrive size={14} className="text-stitch-primary shrink-0" />
+              <HardDrive size={14} className="text-stitch-primaryStrong shrink-0" />
               <span className="truncate">{currentPath}</span>
             </div>
           </div>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-stitch-primary shrink-0 pr-1">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-stitch-primary shrink-0 pr-1">
             pearDrop
           </span>
         </div>
 
-        {/* Crystal File List */}
+        {/* Light Crystal File List */}
         <div className="flex-1 liquid-glass rounded-3xl p-2.5 overflow-y-auto flex flex-col gap-1.5">
           {loading ? (
-            <div className="h-full flex items-center justify-center text-xs text-stitch-outline font-mono">
+            <div className="h-full flex items-center justify-center text-xs text-stitch-muted font-mono">
               Loading vault...
             </div>
           ) : items.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-xs text-stitch-outline font-mono">
+            <div className="h-full flex items-center justify-center text-xs text-stitch-muted font-mono">
               Directory is empty
             </div>
           ) : (
@@ -80,15 +80,15 @@ export const FileDropView: React.FC = () => {
                     window.open(`${window.location.origin}/api/files/download?path=${encodeURIComponent(item.path)}`, '_blank');
                   }
                 }}
-                className="liquid-glass-deep rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-white/10 active:scale-[0.99] transition-all text-left"
+                className="liquid-glass-deep rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-white/75 active:scale-[0.99] transition-all text-left"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   {item.is_dir ? (
-                    <Folder size={17} className="text-stitch-primary shrink-0" />
+                    <Folder size={17} className="text-stitch-primaryStrong shrink-0" />
                   ) : (
                     <File size={17} className="text-stitch-muted shrink-0" />
                   )}
-                  <span className="text-xs font-medium text-stitch-text truncate">{item.name}</span>
+                  <span className="text-xs font-semibold text-stitch-text truncate">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="font-mono text-[10px] text-stitch-outline">{formatSize(item.size_bytes)}</span>
